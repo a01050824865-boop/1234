@@ -33,7 +33,8 @@ var mob_elite_orc_stats = preload("res://resources/EliteOrcStats.tres")
 # Sprite Textures
 var tex_slime = preload("res://asset/Characters01/Characters(100x100 split)/Slime/Slime with shadows/Slime_Walk.png")
 var tex_bat = preload("res://asset/Characters01/Characters(100x100 split)/Bat/Bat/Bat_Flying.png")
-var tex_skel = preload("res://asset/Characters01/Characters(100x100 split)/Skeleton/Skeleton with shadows/Skeleton_Walk.png")
+var tex_skel = preload("res://asset/Characters01/Characters(100x100 split)/Skeleton/Skeleton/Skeleton_Walk.png")
+var tex_skel_attack = preload("res://asset/Characters01/Characters(100x100 split)/Skeleton/Skeleton/Skeleton_Attack01.png")
 var tex_orc = preload("res://asset/Characters01/Characters(100x100 split)/Orc/Orc with shadows/Orc_Walk.png")
 var tex_werewolf = preload("res://asset/Characters01/Characters(100x100 split)/Werewolf/Werewolf with shadows/Werewolf_Walk.png")
 var tex_elite_orc = preload("res://asset/Characters01/Characters(100x100 split)/Elite Orc/Elite Orc with shadows/Elite Orc_Walk.png")
@@ -147,6 +148,9 @@ func spawn_enemy() -> void:
 			enemy.stats = mob_skel_stats.duplicate()
 			enemy.sprite_texture = tex_skel
 			enemy.frames_count = 8
+			enemy.attack_texture = tex_skel_attack
+			enemy.attack_frames_count = 6
+			enemy.attack_range = 65.0
 		"bat":
 			enemy.stats = mob_bat_stats.duplicate()
 			enemy.sprite_texture = tex_bat

@@ -29,7 +29,7 @@ const GameStats = {
     mobs: {
         slime: { name: 'Slime', hp: 30, speed: 70, atk: 6, exp: 1, sprite: 'slime_walk', frames: 6 },
         bat: { name: 'Bat', hp: 20, speed: 135, atk: 8, exp: 2, sprite: 'bat_fly', frames: 6 },
-        skeleton: { name: 'Skeleton', hp: 75, speed: 80, atk: 15, exp: 3, sprite: 'skel_walk', frames: 8 },
+        skeleton: { name: 'Skeleton', hp: 75, speed: 80, atk: 15, exp: 3, sprite: 'skel_walk', frames: 8, attackSprite: 'skel_attack', attackFrames: 6, attackRange: 65, attackInterval: 1.0 },
         orc: { name: 'Orc', hp: 150, speed: 60, atk: 24, exp: 6, sprite: 'orc_walk', frames: 8 },
         werewolf: { name: 'Werewolf', hp: 260, speed: 105, atk: 32, exp: 12, sprite: 'werewolf_walk', frames: 8 },
         elite_orc: { name: 'Elite Orc', hp: 450, speed: 65, atk: 45, exp: 25, sprite: 'elite_orc_walk', frames: 8 }
@@ -399,29 +399,66 @@ class SurvivorGame {
         for (let i = this.mobs.length - 1; i >= 0; i--) {
             const mob = this.mobs[i];
             mob.animTime += dt;
+            if (mob.attackCooldown > 0) mob.attackCooldown -= dt;
 
             const mdx = p.x - mob.x;
             const mdy = p.y - mob.y;
             const dist = Math.hypot(mdx, mdy);
-
-            if (dist > 0.1) {
-                mob.x += (mdx / dist) * mob.speed * dt;
-                mob.y += (mdy / dist) * mob.speed * dt;
+            if (dist > 0.001) {
                 mob.facing = mdx >= 0 ? 1 : -1;
             }
 
-            // Player Collision Check
-            if (dist < 30 && p.invincibleTimer <= 0) {
-                p.hp -= mob.atk;
-                p.invincibleTimer = 0.5;
-                AudioSys.playHit();
-                this.addDamageText(p.x, p.y - 35, `-${mob.atk}`, '#ef4444');
-                this.createBloodParticles(p.x, p.y, '#dc2626');
+            // 공격 모션 진입 체크 (스켈레톤 등)
+            if (mob.attackSprite && dist <= mob.attackRange && mob.attackCooldown <= 0 && mob.state !== 'attack') {
+                mob.state = 'attack';
+                mob.attackTimer = 0;
+                mob.hasDamaged = false;
+            }
 
-                if (p.hp <= 0) {
-                    p.hp = 0;
-                    this.triggerGameOver();
-                    return;
+            if (mob.state === 'attack') {
+                mob.attackTimer = (mob.attackTimer || 0) + dt;
+                const curFrame = Math.floor(mob.attackTimer * 9);
+                if (curFrame >= mob.attackFrames) {
+                    mob.state = 'walk';
+                    mob.attackCooldown = mob.attackInterval || 1.0;
+                } else {
+                    // 공격 타격 프레임 (3번째 프레임)에서 데미지 적용
+                    if (curFrame >= 3 && !mob.hasDamaged) {
+                        mob.hasDamaged = true;
+                        if (dist <= mob.attackRange + 25 && p.invincibleTimer <= 0) {
+                            p.hp -= mob.atk;
+                            p.invincibleTimer = 0.5;
+                            AudioSys.playHit();
+                            this.addDamageText(p.x, p.y - 35, `-${mob.atk}`, '#ef4444');
+                            this.createBloodParticles(p.x, p.y, '#dc2626');
+
+                            if (p.hp <= 0) {
+                                p.hp = 0;
+                                this.triggerGameOver();
+                                return;
+                            }
+                        }
+                    }
+                }
+            } else {
+                if (dist > 0.1) {
+                    mob.x += (mdx / dist) * mob.speed * dt;
+                    mob.y += (mdy / dist) * mob.speed * dt;
+                }
+
+                // Player Collision Check (일반 접촉 공격)
+                if (dist < 30 && p.invincibleTimer <= 0) {
+                    p.hp -= mob.atk;
+                    p.invincibleTimer = 0.5;
+                    AudioSys.playHit();
+                    this.addDamageText(p.x, p.y - 35, `-${mob.atk}`, '#ef4444');
+                    this.createBloodParticles(p.x, p.y, '#dc2626');
+
+                    if (p.hp <= 0) {
+                        p.hp = 0;
+                        this.triggerGameOver();
+                        return;
+                    }
                 }
             }
         }
@@ -710,6 +747,12 @@ class SurvivorGame {
             exp: proto.exp,
             sprite: proto.sprite,
             frames: proto.frames,
+            attackSprite: proto.attackSprite || null,
+            attackFrames: proto.attackFrames || 6,
+            attackRange: proto.attackRange || 0,
+            attackInterval: proto.attackInterval || 1.0,
+            attackCooldown: 0,
+            state: 'walk',
             animTime: Math.random(),
             facing: 1
         });
@@ -923,7 +966,10 @@ class SurvivorGame {
 
         // 3. Monsters
         for (const mob of this.mobs) {
-            this.drawSprite(mob.sprite, mob.x, mob.y, mob.facing, mob.animTime, mob.frames, 100, 100, 64);
+            const spr = (mob.state === 'attack' && mob.attackSprite) ? mob.attackSprite : mob.sprite;
+            const fCount = (mob.state === 'attack' && mob.attackFrames) ? mob.attackFrames : mob.frames;
+            const aTime = (mob.state === 'attack') ? (mob.attackTimer || 0) : mob.animTime;
+            this.drawSprite(spr, mob.x, mob.y, mob.facing, aTime, fCount, 100, 100, 64);
             if (mob.hp < mob.maxHp) {
                 const barW = 36;
                 const barH = 5;
@@ -1036,7 +1082,8 @@ async function start() {
 
         assets.load('slime_walk', 'asset/Characters01/Characters(100x100 split)/Slime/Slime with shadows/Slime_Walk.png'),
         assets.load('bat_fly', 'asset/Characters01/Characters(100x100 split)/Bat/Bat/Bat_Flying.png'),
-        assets.load('skel_walk', 'asset/Characters01/Characters(100x100 split)/Skeleton/Skeleton with shadows/Skeleton_Walk.png'),
+        assets.load('skel_walk', 'asset/Characters01/Characters(100x100 split)/Skeleton/Skeleton/Skeleton_Walk.png'),
+        assets.load('skel_attack', 'asset/Characters01/Characters(100x100 split)/Skeleton/Skeleton/Skeleton_Attack01.png'),
         assets.load('orc_walk', 'asset/Characters01/Characters(100x100 split)/Orc/Orc with shadows/Orc_Walk.png'),
         assets.load('werewolf_walk', 'asset/Characters01/Characters(100x100 split)/Werewolf/Werewolf with shadows/Werewolf_Walk.png'),
         assets.load('elite_orc_walk', 'asset/Characters01/Characters(100x100 split)/Elite Orc/Elite Orc with shadows/Elite Orc_Walk.png'),
