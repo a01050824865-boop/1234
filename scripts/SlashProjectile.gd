@@ -20,8 +20,9 @@ func _ready() -> void:
 	rotation = direction_vector.angle()
 
 var is_recycled: bool = false
+var is_awakened: bool = false
 
-func init_slash(pos: Vector2, dir: Vector2, dmg: float, p_pierce: int = 3, spd: float = 420.0, life: float = 0.75) -> void:
+func init_slash(pos: Vector2, dir: Vector2, dmg: float, p_pierce: int = 3, spd: float = 420.0, life: float = 0.75, p_awakened: bool = false) -> void:
 	global_position = pos
 	direction_vector = dir.normalized()
 	damage = dmg
@@ -31,7 +32,15 @@ func init_slash(pos: Vector2, dir: Vector2, dmg: float, p_pierce: int = 3, spd: 
 	total_lifetime = life
 	anim_timer = 0.0
 	is_recycled = false
-	scale = Vector2(1.4, 1.4)
+	is_awakened = p_awakened
+	
+	if is_awakened:
+		scale = Vector2(1.8, 1.8)
+		modulate = Color(3.5, 0.7, 0.2, 1.0) # 타오르는 진홍빛 화염 이펙트
+	else:
+		scale = Vector2(1.4, 1.4)
+		modulate = Color(1.0, 1.0, 1.0, 1.0)
+		
 	rotation = direction_vector.angle()
 	if sprite:
 		sprite.frame = 0
@@ -54,6 +63,8 @@ func _on_body_entered(body: Node2D) -> void:
 		return
 	if body.is_in_group("enemies") and body.has_method("take_damage"):
 		body.take_damage(damage)
+		if is_awakened and body.has_method("apply_burn"):
+			body.apply_burn(damage * 0.32, 3.0)
 		pierce -= 1
 		if pierce <= 0 and not is_recycled:
 			is_recycled = true
@@ -65,6 +76,8 @@ func _on_area_entered(area: Area2D) -> void:
 	var parent = area.get_parent()
 	if parent and parent.is_in_group("enemies") and parent.has_method("take_damage"):
 		parent.take_damage(damage)
+		if is_awakened and parent.has_method("apply_burn"):
+			parent.apply_burn(damage * 0.32, 3.0)
 		pierce -= 1
 		if pierce <= 0 and not is_recycled:
 			is_recycled = true

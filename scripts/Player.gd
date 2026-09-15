@@ -126,7 +126,9 @@ func _physics_process(delta: float) -> void:
 	# Auto Attack: Slash
 	if skills["slash"] > 0:
 		slash_timer += delta
-		var interval = stats.attack_interval / (1.0 + (skills["slash"] - 1) * 0.18)
+		var is_awakened = skills["slash"] >= 5
+		var base_interval = stats.attack_interval / (1.0 + (skills["slash"] - 1) * 0.18)
+		var interval = base_interval * 0.85 if is_awakened else base_interval
 		if slash_timer >= interval:
 			slash_timer = 0.0
 			fire_slash()
@@ -177,9 +179,13 @@ func fire_slash() -> void:
 
 	var slash = ObjectPool.spawn(slash_scene, parent_node) as SlashProjectile
 	if slash:
-		var dmg = stats.base_attack_power * (1.0 + (skills["slash"] - 1) * 0.35)
-		var pierce_count = 2 + skills["slash"]
-		slash.init_slash(global_position, attack_dir, dmg, pierce_count)
+		var lvl = skills["slash"]
+		var is_awakened = lvl >= 5
+		var spd = 580.0 if is_awakened else 420.0
+		var life = 1.3 if is_awakened else 0.75
+		var dmg = stats.base_attack_power * (1.0 + (lvl - 1) * 0.45) * 1.85 if is_awakened else stats.base_attack_power * (1.0 + (lvl - 1) * 0.35)
+		var pierce_count = 999 if is_awakened else (2 + lvl)
+		slash.init_slash(global_position, attack_dir, dmg, pierce_count, spd, life, is_awakened)
 
 func cast_lightning() -> void:
 	var enemies = get_tree().get_nodes_in_group("enemies")

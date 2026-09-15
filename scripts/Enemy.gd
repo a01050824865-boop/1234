@@ -17,6 +17,10 @@ var attack_timer: float = 0.0
 var attack_cooldown: float = 0.0
 var has_damaged: bool = false
 
+var burn_timer: float = 0.0
+var burn_damage: float = 0.0
+var burn_tick_timer: float = 0.0
+
 @onready var sprite: Sprite2D = $Sprite2D
 @onready var anim_player: AnimationPlayer = $AnimationPlayer
 
@@ -33,9 +37,26 @@ func _ready() -> void:
 		sprite.vframes = 1
 		sprite.frame = 0
 
+func apply_burn(dmg: float, duration: float) -> void:
+	burn_timer = duration
+	burn_damage = dmg
+	burn_tick_timer = 0.0
+
 func _physics_process(delta: float) -> void:
 	if stats.current_health <= 0:
 		return
+
+	# 화염 지속 데미지 (Burn DoT)
+	if burn_timer > 0.0:
+		burn_timer -= delta
+		burn_tick_timer += delta
+		if burn_tick_timer >= 0.35:
+			burn_tick_timer = 0.0
+			take_damage(burn_damage)
+			# 화염 피격 플래시
+			modulate = Color(2.5, 0.6, 0.2, 1.0)
+			var tween = create_tween()
+			tween.tween_property(self, "modulate", Color(1, 1, 1, 1), 0.1)
 
 	if attack_cooldown > 0.0:
 		attack_cooldown -= delta
@@ -80,8 +101,8 @@ func _physics_process(delta: float) -> void:
 					if is_instance_valid(player_node) and global_position.distance_to(player_node.global_position) <= attack_range + 25.0:
 						player_node.take_damage(stats.base_attack_power)
 		else:
-			# 기본 걷기 및 추적
-			velocity = dir * stats.move_speed
+			# 기본 걷기 및 추적 (캐릭터와 물리적으로 걸리거나 엉키지 않고 부드럽게 통과)
+			global_position += dir * stats.move_speed * delta
 			if dir.x > 0:
 				sprite.flip_h = false
 			elif dir.x < 0:
@@ -91,11 +112,9 @@ func _physics_process(delta: float) -> void:
 			if sprite and frames_count > 0:
 				sprite.frame = int(anim_timer * 8.0) % frames_count
 
-			var collision = move_and_collide(velocity * delta)
-			if collision:
-				var collider = collision.get_collider()
-				if collider is Player:
-					collider.take_damage(stats.base_attack_power)
+			# 접촉 데미지 (거리 판정으로 통과 중 자연스러운 타격)
+			if is_instance_valid(player_node) and global_position.distance_to(player_node.global_position) <= 28.0:
+				player_node.take_damage(stats.base_attack_power)
 
 func init_enemy(p_stats: CharacterStats, p_tex: Texture2D, p_frames: int, p_atk_tex: Texture2D = null, p_atk_frames: int = 6, p_atk_range: float = 0.0) -> void:
 	stats = p_stats.duplicate()

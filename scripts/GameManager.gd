@@ -32,6 +32,7 @@ var mob_elite_orc_stats = preload("res://resources/EliteOrcStats.tres")
 
 # Sprite Textures
 var tex_slime = preload("res://asset/Characters01/Characters(100x100 split)/Slime/Slime with shadows/Slime_Walk.png")
+var tex_slime_attack = preload("res://asset/Characters01/Characters(100x100 split)/Slime/Slime/Slime_Attack01.png")
 var tex_bat = preload("res://asset/Characters01/Characters(100x100 split)/Bat/Bat/Bat_Flying.png")
 var tex_skel = preload("res://asset/Characters01/Characters(100x100 split)/Skeleton/Skeleton/Skeleton_Walk.png")
 var tex_skel_attack = preload("res://asset/Characters01/Characters(100x100 split)/Skeleton/Skeleton/Skeleton_Attack01.png")
@@ -146,7 +147,7 @@ func spawn_enemy() -> void:
 			enemy.init_enemy(mob_bat_stats, tex_bat, 6)
 		_:
 			# slime (웨이브가 지나도 첫 웨이브 스탯 그대로 유지)
-			enemy.init_enemy(mob_slime_stats, tex_slime, 6)
+			enemy.init_enemy(mob_slime_stats, tex_slime, 6, tex_slime_attack, 6, 50.0)
 
 func _on_health_changed(curr: float, max_hp: float) -> void:
 	hp_label.text = "❤️ HP: %d / %d" % [ceil(curr), ceil(max_hp)]
@@ -232,16 +233,24 @@ func _on_level_up(lvl: int) -> void:
 	for i in range(min(3, all_skills.size())):
 		var sk = all_skills[i]
 		var cur_lv = player.skills.get(sk["id"], 0)
-		var lv_text = "현재 LV %d ➡️ LV %d" % [cur_lv, cur_lv + 1] if sk["id"] != "health" else "체력 보너스"
+		var is_awakening_next = sk["id"] == "slash" and cur_lv == 4
+		var sk_name = "🔥 진홍의 염제 검기 (각성)" if is_awakening_next else sk["name"]
+		var sk_desc = "검기가 붉은 화염으로 각성합니다! 사거리·공속·반경·공격력 대폭 상승 & 화염 지속 피해(Burn DoT) 부여!" if is_awakening_next else sk["desc"]
+		var lv_text = "⚡ [스킬 최종 각성 진화!]" if is_awakening_next else ("현재 LV %d ➡️ LV %d" % [cur_lv, cur_lv + 1] if sk["id"] != "health" else "체력 보너스")
 
 		var panel = PanelContainer.new()
 		panel.custom_minimum_size = Vector2(250, 260)
 
 		# Style the card box
 		var style = StyleBoxFlat.new()
-		style.bg_color = Color(0.12, 0.14, 0.2, 0.95)
-		style.border_color = Color(0.9, 0.75, 0.3, 1.0)
-		style.set_border_width_all(2)
+		if is_awakening_next:
+			style.bg_color = Color(0.22, 0.08, 0.08, 0.98)
+			style.border_color = Color(1.0, 0.4, 0.1, 1.0)
+			style.set_border_width_all(3)
+		else:
+			style.bg_color = Color(0.12, 0.14, 0.2, 0.95)
+			style.border_color = Color(0.9, 0.75, 0.3, 1.0)
+			style.set_border_width_all(2)
 		style.set_corner_radius_all(10)
 		style.content_margin_left = 14
 		style.content_margin_right = 14
@@ -267,13 +276,15 @@ func _on_level_up(lvl: int) -> void:
 			var h = raw_tex.get_height()
 			atlas.region = Rect2(sk["frame"] * w, 0, w, h)
 			tex_rect.texture = atlas
+		if is_awakening_next:
+			tex_rect.modulate = Color(3.0, 0.7, 0.2, 1.0)
 		vbox.add_child(tex_rect)
 
 		# Skill Name Label
 		var name_lbl = Label.new()
-		name_lbl.text = sk["name"]
+		name_lbl.text = sk_name
 		name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		name_lbl.add_theme_color_override("font_color", Color(1.0, 0.9, 0.4))
+		name_lbl.add_theme_color_override("font_color", Color(1.0, 0.45, 0.2) if is_awakening_next else Color(1.0, 0.9, 0.4))
 		name_lbl.add_theme_font_size_override("font_size", 16)
 		vbox.add_child(name_lbl)
 
@@ -281,13 +292,13 @@ func _on_level_up(lvl: int) -> void:
 		var lv_lbl = Label.new()
 		lv_lbl.text = lv_text
 		lv_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		lv_lbl.add_theme_color_override("font_color", Color(0.4, 0.85, 1.0))
+		lv_lbl.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3) if is_awakening_next else Color(0.4, 0.85, 1.0))
 		lv_lbl.add_theme_font_size_override("font_size", 13)
 		vbox.add_child(lv_lbl)
 
 		# Description Label
 		var desc_lbl = Label.new()
-		desc_lbl.text = sk["desc"]
+		desc_lbl.text = sk_desc
 		desc_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		desc_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		desc_lbl.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -314,6 +325,7 @@ func add_score(amount: int) -> void:
 		score_label.text = "🏆 SCORE: %d" % score
 
 func _on_player_died() -> void:
+	get_tree().paused = true
 	if final_score_label:
 		final_score_label.text = "최종 점수: %d" % score
 	gameover_modal.visible = true

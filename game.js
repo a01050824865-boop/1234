@@ -46,7 +46,7 @@ const GameStats = {
         magnet: 110
     },
     mobs: {
-        slime: { name: 'Slime', hp: 30, speed: 70, atk: 6, exp: 1, sprite: 'slime_walk', frames: 6 },
+        slime: { name: 'Slime', hp: 30, speed: 70, atk: 6, exp: 1, sprite: 'slime_walk', frames: 6, attackSprite: 'slime_attack', attackFrames: 6, attackRange: 50, attackInterval: 1.0 },
         bat: { name: 'Bat', hp: 20, speed: 135, atk: 8, exp: 2, sprite: 'bat_fly', frames: 6 },
         skeleton: { name: 'Skeleton', hp: 75, speed: 80, atk: 15, exp: 3, sprite: 'skel_walk', frames: 8, attackSprite: 'skel_attack', attackFrames: 6, attackRange: 65, attackInterval: 1.0 },
         orc: { name: 'Orc', hp: 150, speed: 60, atk: 24, exp: 6, sprite: 'orc_walk', frames: 8 },
@@ -276,6 +276,7 @@ const AudioSys = {
 /* --- SURVIVOR GAME CORE --- */
 class SurvivorGame {
     constructor() {
+        window.game = this;
         this.canvas = document.getElementById('gameCanvas');
         this.ctx = this.canvas.getContext('2d');
         this.resize();
@@ -284,14 +285,24 @@ class SurvivorGame {
         this.keys = {};
         window.addEventListener('keydown', (e) => {
             AudioSys.init();
-            const k = e.key.toLowerCase();
-            this.keys[k] = true;
-            if (['w', 'a', 's', 'd', 'arrowup', 'arrowleft', 'arrowdown', 'arrowright'].includes(k)) {
+            const code = e.code;
+            const key = e.key ? e.key.toLowerCase() : '';
+            this.keys[code] = true;
+            this.keys[key] = true;
+            if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowLeft', 'ArrowDown', 'ArrowRight', 'w', 'a', 's', 'd', 'arrowup', 'arrowleft', 'arrowdown', 'arrowright'].includes(code) || ['w', 'a', 's', 'd', 'arrowup', 'arrowleft', 'arrowdown', 'arrowright'].includes(key)) {
                 e.preventDefault();
             }
         });
         window.addEventListener('keyup', (e) => {
-            this.keys[e.key.toLowerCase()] = false;
+            const code = e.code;
+            const key = e.key ? e.key.toLowerCase() : '';
+            this.keys[code] = false;
+            this.keys[key] = false;
+        });
+
+        // 탭 전환, 포커스 아웃 시 키 상태 완전 초기화 (키 고착 및 저절로 되돌아가는 현상 방지)
+        window.addEventListener('blur', () => {
+            this.keys = {};
         });
 
         this.mousePos = { x: 0, y: 0 };
@@ -301,7 +312,17 @@ class SurvivorGame {
             this.mousePos.y = e.clientY - rect.top;
         });
 
-        document.getElementById('btn-restart').onclick = () => this.reset();
+        const restartBtn = document.getElementById('btn-restart');
+        if (restartBtn) {
+            restartBtn.onclick = (e) => {
+                if (e) e.stopPropagation();
+                this.reset();
+            };
+            restartBtn.onpointerdown = (e) => {
+                if (e) e.stopPropagation();
+                this.reset();
+            };
+        }
 
         this.reset();
     }
@@ -317,6 +338,8 @@ class SurvivorGame {
         this.isGameOver = false;
         this.gameTime = 0;
         this.killCount = 0;
+        this.lastWave = 1;
+        this.keys = {}; // 키 입력 상태 완전 초기화
 
         // Player State (Knight)
         this.player = {
@@ -331,7 +354,7 @@ class SurvivorGame {
             lastMoveDir: { x: 1, y: 0 },
             state: 'idle',
             animTime: 0,
-            invincibleTimer: 0
+            invincibleTimer: 1.0 // 부활 시 1초 무적 부여
         };
 
         this.skills = JSON.parse(JSON.stringify(SKILLS_DB));
@@ -359,8 +382,11 @@ class SurvivorGame {
         this.spawnTimer = 0;
         this.orbitAngle = 0;
 
-        document.getElementById('levelup-modal').classList.add('hidden');
-        document.getElementById('gameover-modal').classList.add('hidden');
+        const levelupModal = document.getElementById('levelup-modal');
+        if (levelupModal) levelupModal.classList.add('hidden');
+        const gameoverModal = document.getElementById('gameover-modal');
+        if (gameoverModal) gameoverModal.classList.add('hidden');
+
         this.updateSkillsHUD();
         this.updateHUD();
     }
@@ -373,10 +399,10 @@ class SurvivorGame {
         // 1. WASD & Arrow Key Movement (8 Directions)
         let dx = 0;
         let dy = 0;
-        if (this.keys['w'] || this.keys['arrowup']) dy -= 1;
-        if (this.keys['s'] || this.keys['arrowdown']) dy += 1;
-        if (this.keys['a'] || this.keys['arrowleft']) dx -= 1;
-        if (this.keys['d'] || this.keys['arrowright']) dx += 1;
+        if (this.keys['KeyW'] || this.keys['w'] || this.keys['ArrowUp'] || this.keys['arrowup'] || this.keys['ㅈ']) dy -= 1;
+        if (this.keys['KeyS'] || this.keys['s'] || this.keys['ArrowDown'] || this.keys['arrowdown'] || this.keys['ㄴ']) dy += 1;
+        if (this.keys['KeyA'] || this.keys['a'] || this.keys['ArrowLeft'] || this.keys['arrowleft'] || this.keys['ㅁ']) dx -= 1;
+        if (this.keys['KeyD'] || this.keys['d'] || this.keys['ArrowRight'] || this.keys['arrowright'] || this.keys['ㅇ']) dx += 1;
 
         const isMoving = dx !== 0 || dy !== 0;
         if (isMoving) {
@@ -446,6 +472,22 @@ class SurvivorGame {
                 mob.state = 'attack';
                 mob.attackTimer = 0;
                 mob.hasDamaged = false;
+            }
+
+            // 화염 지속 피해 (각성 불 검기 DoT)
+            if (mob.burnTimer > 0) {
+                mob.burnTimer -= dt;
+                mob.burnTick = (mob.burnTick || 0) + dt;
+                if (mob.burnTick >= 0.35) {
+                    mob.burnTick = 0;
+                    mob.hp -= mob.burnDmg;
+                    this.addDamageText(mob.x + (Math.random() - 0.5) * 20, mob.y - 30, `🔥${Math.round(mob.burnDmg)}`, '#f97316');
+                    this.createBloodParticles(mob.x, mob.y, '#ea580c');
+                    if (mob.hp <= 0) {
+                        this.killMob(i);
+                        continue;
+                    }
+                }
             }
 
             if (mob.state === 'attack') {
@@ -518,8 +560,19 @@ class SurvivorGame {
                         proj.hitMobs.add(mob);
                         mob.hp -= proj.damage;
                         AudioSys.playHit();
-                        this.addDamageText(mob.x, mob.y - 25, `${Math.round(proj.damage)}`, '#f59e0b');
-                        this.createBloodParticles(mob.x, mob.y, '#f59e0b');
+
+                        if (proj.isAwakened) {
+                            // 각성 불 검기: 강력한 타격 이펙트 및 화염 상태이상(Burn DoT) 부여
+                            this.addDamageText(mob.x, mob.y - 25, `💥${Math.round(proj.damage)}`, '#ff4500');
+                            this.createBloodParticles(mob.x, mob.y, '#ff4500');
+                            this.createBloodParticles(mob.x, mob.y, '#f59e0b');
+                            mob.burnTimer = 3.0; // 3초간 지속 화염
+                            mob.burnDmg = Math.max(12, proj.damage * 0.32); // 초당 강력한 화염 도트 피해
+                            mob.burnTick = 0;
+                        } else {
+                            this.addDamageText(mob.x, mob.y - 25, `${Math.round(proj.damage)}`, '#f59e0b');
+                            this.createBloodParticles(mob.x, mob.y, '#f59e0b');
+                        }
 
                         if (mob.hp <= 0) {
                             this.killMob(j);
@@ -595,7 +648,9 @@ class SurvivorGame {
         const slash = this.skills.sword_slash;
         if (slash.level > 0) {
             slash.timer = (slash.timer || 0) + dt;
-            const rate = GameStats.player.attackRate / (1 + (slash.level - 1) * 0.18);
+            const isAwakened = slash.level >= 5;
+            const baseInterval = GameStats.player.attackRate / (1 + (slash.level - 1) * 0.18);
+            const rate = isAwakened ? baseInterval * 0.85 : baseInterval; // 각성 시 적절한 공속 (약 15% 쾌적 가속)
             if (slash.timer >= rate) {
                 slash.timer = 0;
                 this.fireSlash();
@@ -671,21 +726,30 @@ class SurvivorGame {
         }
 
         const angle = Math.atan2(dirY, dirX);
-        const spd = 420;
         const lvl = this.skills.sword_slash.level;
-        const dmg = GameStats.player.attack * (1 + (lvl - 1) * 0.35);
+        const isAwakened = lvl >= 5;
+
+        // 각성 스탯: 사거리(speed 580, life 1.3), 반경 소폭 증가, 공격력 대폭 상승(1.8배 계수), 완전 관통
+        const spd = isAwakened ? 580 : 420;
+        const life = isAwakened ? 1.3 : 0.75;
+        const radius = isAwakened ? (38 + lvl * 5) : (28 + lvl * 4);
+        const dmg = isAwakened 
+            ? GameStats.player.attack * (1 + (lvl - 1) * 0.45) * 1.85 
+            : GameStats.player.attack * (1 + (lvl - 1) * 0.35);
+        const pierce = isAwakened ? 999 : (2 + lvl);
 
         const proj = this.projPool.get();
         proj.type = 'slash';
+        proj.isAwakened = isAwakened;
         proj.x = p.x + dirX * 20;
         proj.y = p.y + dirY * 20;
         proj.vx = dirX * spd;
         proj.vy = dirY * spd;
         proj.angle = angle;
-        proj.radius = 28 + lvl * 4;
+        proj.radius = radius;
         proj.damage = dmg;
-        proj.pierce = 2 + lvl;
-        proj.life = 0.75;
+        proj.pierce = pierce;
+        proj.life = life;
         proj.facing = p.facing;
         if (proj.hitMobs) proj.hitMobs.clear();
 
@@ -840,6 +904,7 @@ class SurvivorGame {
 
     showLevelUpModal() {
         this.isPaused = true;
+        this.keys = {}; // 모달 오픈 시 이동 키 초기화
         const modal = document.getElementById('levelup-modal');
         const container = document.getElementById('cards-container');
         container.innerHTML = '';
@@ -855,13 +920,31 @@ class SurvivorGame {
         chosen.forEach(sk => {
             const card = document.createElement('div');
             card.className = 'skill-card';
+            
+            const isAwakeningNext = sk.id === 'sword_slash' && sk.level === 4;
+            const icon = isAwakeningNext ? '🔥' : sk.icon;
+            const name = isAwakeningNext ? '🔥 진홍의 염제 검기 (각성)' : sk.name;
+            const levelText = isAwakeningNext 
+                ? '⚡ [스킬 최종 각성 진화!]' 
+                : (sk.level === 0 ? '신규 획득 [LV 1]' : `레벨 업 [LV ${sk.level + 1}]`);
+            const descText = isAwakeningNext 
+                ? '검기가 붉은 화염으로 각성합니다! 사거리·공속·반경·공격력 대폭 상승 & 적에게 지속 화염 피해(Burn DoT) 부여!' 
+                : sk.desc;
+
+            if (isAwakeningNext) {
+                card.style.borderColor = '#f97316';
+                card.style.boxShadow = '0 0 22px rgba(249, 115, 22, 0.7)';
+                card.style.background = 'linear-gradient(145deg, #2a1215, #18080a)';
+            }
+
             card.innerHTML = `
-                <div class="skill-icon">${sk.icon}</div>
-                <div class="skill-name">${sk.name}</div>
-                <div class="skill-level">${sk.level === 0 ? '신규 획득 [LV 1]' : `레벨 업 [LV ${sk.level + 1}]`}</div>
-                <div class="skill-desc">${sk.desc}</div>
+                <div class="skill-icon">${icon}</div>
+                <div class="skill-name" style="${isAwakeningNext ? 'color: #fdba74; text-shadow: 0 0 8px rgba(249,115,22,0.8);' : ''}">${name}</div>
+                <div class="skill-level" style="${isAwakeningNext ? 'color: #f87171;' : ''}">${levelText}</div>
+                <div class="skill-desc">${descText}</div>
             `;
             card.onclick = () => {
+                this.keys = {}; // 카드 선택 후 키 상태 초기화
                 this.selectSkill(sk.id);
                 modal.classList.add('hidden');
                 this.isPaused = false;
@@ -881,6 +964,12 @@ class SurvivorGame {
             this.player.hp = Math.min(this.player.maxHp, this.player.hp + 35);
         }
 
+        if (id === 'sword_slash' && sk.level >= 5) {
+            this.addDamageText(this.player.x, this.player.y - 70, '🔥 기사 검기 스킬 각성 달성! 🔥', '#ff4500');
+            this.createBloodParticles(this.player.x, this.player.y, '#ff4500');
+            this.createBloodParticles(this.player.x, this.player.y, '#f59e0b');
+        }
+
         this.updateSkillsHUD();
         this.updateHUD();
         this.checkLevelUp();
@@ -888,9 +977,16 @@ class SurvivorGame {
 
     triggerGameOver() {
         this.isGameOver = true;
-        document.getElementById('final-time').innerText = this.formatTime(this.gameTime);
-        document.getElementById('final-kills').innerText = this.killCount;
-        document.getElementById('gameover-modal').classList.remove('hidden');
+        this.isPaused = false;
+        this.keys = {};
+        const levelupModal = document.getElementById('levelup-modal');
+        if (levelupModal) levelupModal.classList.add('hidden');
+        const finalTimeEl = document.getElementById('final-time');
+        if (finalTimeEl) finalTimeEl.innerText = this.formatTime(this.gameTime);
+        const finalKillsEl = document.getElementById('final-kills');
+        if (finalKillsEl) finalKillsEl.innerText = this.killCount;
+        const gameoverModal = document.getElementById('gameover-modal');
+        if (gameoverModal) gameoverModal.classList.remove('hidden');
     }
 
     formatTime(sec) {
@@ -933,9 +1029,16 @@ class SurvivorGame {
         container.innerHTML = '';
         Object.values(this.skills).forEach(sk => {
             if (sk.level > 0) {
+                const isAwakened = sk.id === 'sword_slash' && sk.level >= 5;
                 const badge = document.createElement('div');
                 badge.className = 'active-skill-badge';
-                badge.innerHTML = `<span class="icon">${sk.icon}</span><span class="lvl">LV.${sk.level}</span>`;
+                if (isAwakened) {
+                    badge.style.borderColor = '#ef4444';
+                    badge.style.boxShadow = '0 0 12px rgba(239, 68, 68, 0.7)';
+                    badge.innerHTML = `<span class="icon">🔥</span><span class="lvl" style="color: #f87171;">각성 MAX</span>`;
+                } else {
+                    badge.innerHTML = `<span class="icon">${sk.icon}</span><span class="lvl">LV.${sk.level}</span>`;
+                }
                 container.appendChild(badge);
             }
         });
@@ -1016,14 +1119,55 @@ class SurvivorGame {
         }
         ctx.stroke();
 
-        // 2. EXP Gems
+        // 2. EXP Gems (경험치 보석 티어별 색상/크기/형태 구분)
         for (const gem of this.gems) {
-            ctx.fillStyle = '#38bdf8';
-            ctx.shadowColor = '#38bdf8';
-            ctx.shadowBlur = 8;
+            let color = '#22c55e';
+            let glow = '#4ade80';
+            let radius = 4.5;
+
+            if (gem.value >= 11) {
+                // 티어 4: 황금 루비 (EXP 11+ / 늑대인간, 엘리트 오크)
+                color = '#f59e0b';
+                glow = '#ef4444';
+                radius = 8.5;
+            } else if (gem.value >= 6) {
+                // 티어 3: 보라 자수정 (EXP 6~10 / 오크)
+                color = '#a855f7';
+                glow = '#c084fc';
+                radius = 7.0;
+            } else if (gem.value >= 3) {
+                // 티어 2: 파랑 사파이어 (EXP 3~5 / 스켈레톤)
+                color = '#38bdf8';
+                glow = '#0284c7';
+                radius = 5.5;
+            } else {
+                // 티어 1: 초록 에메랄드 (EXP 1~2 / 슬라임, 박쥐)
+                color = '#22c55e';
+                glow = '#4ade80';
+                radius = 4.5;
+            }
+
+            ctx.fillStyle = color;
+            ctx.shadowColor = glow;
+            ctx.shadowBlur = gem.value >= 11 ? 14 : 8;
+
+            // 입체적인 마름모 보석 형태
             ctx.beginPath();
-            ctx.arc(gem.x, gem.y, 6, 0, Math.PI * 2);
+            ctx.moveTo(gem.x, gem.y - radius);
+            ctx.lineTo(gem.x + radius, gem.y);
+            ctx.lineTo(gem.x, gem.y + radius);
+            ctx.lineTo(gem.x - radius, gem.y);
+            ctx.closePath();
             ctx.fill();
+
+            // 중/대형 보석 하이라이트 코어
+            if (gem.value >= 6) {
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(gem.x, gem.y, radius * 0.35, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
             ctx.shadowBlur = 0;
         }
 
@@ -1033,6 +1177,18 @@ class SurvivorGame {
             const fCount = (mob.state === 'attack' && mob.attackFrames) ? mob.attackFrames : mob.frames;
             const aTime = (mob.state === 'attack') ? (mob.attackTimer || 0) : mob.animTime;
             this.drawSprite(spr, mob.x, mob.y, mob.facing, aTime, fCount, 100, 100, 64);
+
+            // 화염 지속 피해(Burn) 상태 시 머리 위 불꽃 이펙트 표시
+            if (mob.burnTimer > 0) {
+                ctx.save();
+                ctx.font = '14px Segoe UI, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.shadowColor = '#ff4500';
+                ctx.shadowBlur = 8;
+                ctx.fillText('🔥', mob.x, mob.y - 44);
+                ctx.restore();
+            }
+
             if (mob.hp < mob.maxHp) {
                 const barW = 36;
                 const barH = 5;
@@ -1057,13 +1213,45 @@ class SurvivorGame {
                 ctx.save();
                 ctx.translate(proj.x, proj.y);
                 ctx.rotate(proj.angle !== undefined ? proj.angle : (proj.facing === -1 ? Math.PI : 0));
-                ctx.strokeStyle = '#60a5fa';
-                ctx.lineWidth = 6;
-                ctx.shadowColor = '#3b82f6';
-                ctx.shadowBlur = 12;
-                ctx.beginPath();
-                ctx.arc(0, 0, proj.radius, -Math.PI / 3, Math.PI / 3);
-                ctx.stroke();
+
+                if (proj.isAwakened) {
+                    // 🔥 각성 진홍의 불 검기: 3중 화염 아크 (외곽 진홍, 중간 주황, 코어 황금)
+                    ctx.strokeStyle = '#ef4444';
+                    ctx.lineWidth = 11;
+                    ctx.shadowColor = '#ff2200';
+                    ctx.shadowBlur = 22;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, proj.radius, -Math.PI / 2.7, Math.PI / 2.7);
+                    ctx.stroke();
+
+                    ctx.strokeStyle = '#f97316';
+                    ctx.lineWidth = 6;
+                    ctx.shadowColor = '#ea580c';
+                    ctx.shadowBlur = 10;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, proj.radius, -Math.PI / 2.8, Math.PI / 2.8);
+                    ctx.stroke();
+
+                    ctx.strokeStyle = '#fef08a';
+                    ctx.lineWidth = 3;
+                    ctx.shadowBlur = 0;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, proj.radius - 1, -Math.PI / 3.2, Math.PI / 3.2);
+                    ctx.stroke();
+
+                    // 불꽃 궤적 파티클 방출
+                    if (Math.random() < 0.3) {
+                        this.createBloodParticles(proj.x, proj.y, '#ff4500');
+                    }
+                } else {
+                    ctx.strokeStyle = '#60a5fa';
+                    ctx.lineWidth = 6;
+                    ctx.shadowColor = '#3b82f6';
+                    ctx.shadowBlur = 12;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, proj.radius, -Math.PI / 3, Math.PI / 3);
+                    ctx.stroke();
+                }
                 ctx.restore();
             } else if (proj.type === 'orbit') {
                 ctx.fillStyle = '#fde047';
@@ -1144,6 +1332,7 @@ async function start() {
         assets.load('knight_death', 'asset/Characters01/Characters(100x100 split)/Knight/Knight with shadows/Knight_Death.png'),
 
         assets.load('slime_walk', 'asset/Characters01/Characters(100x100 split)/Slime/Slime with shadows/Slime_Walk.png'),
+        assets.load('slime_attack', 'asset/Characters01/Characters(100x100 split)/Slime/Slime/Slime_Attack01.png'),
         assets.load('bat_fly', 'asset/Characters01/Characters(100x100 split)/Bat/Bat/Bat_Flying.png'),
         assets.load('skel_walk', 'asset/Characters01/Characters(100x100 split)/Skeleton/Skeleton/Skeleton_Walk.png'),
         assets.load('skel_attack', 'asset/Characters01/Characters(100x100 split)/Skeleton/Skeleton/Skeleton_Attack01.png'),
