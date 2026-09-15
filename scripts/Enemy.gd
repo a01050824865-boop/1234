@@ -110,6 +110,7 @@ func init_enemy(p_stats: CharacterStats, p_tex: Texture2D, p_frames: int, p_atk_
 	attack_cooldown = 0.0
 	has_damaged = false
 	anim_timer = 0.0
+	is_dying = false
 	modulate = Color(1, 1, 1, 1)
 
 	if sprite:
@@ -118,15 +119,20 @@ func init_enemy(p_stats: CharacterStats, p_tex: Texture2D, p_frames: int, p_atk_
 		sprite.vframes = 1
 		sprite.frame = 0
 
+var is_dying: bool = false
+
 func take_damage(amount: float) -> void:
+	if is_dying:
+		return
 	var died = stats.take_damage(amount)
 	# Flash white
 	modulate = Color(3.0, 1.0, 1.0, 1.0)
 	var tween = create_tween()
 	tween.tween_property(self, "modulate", Color(1, 1, 1, 1), 0.12)
 
-	if died:
-		die()
+	if died and not is_dying:
+		is_dying = true
+		call_deferred("die")
 
 func die() -> void:
 	var parent_node = get_parent()

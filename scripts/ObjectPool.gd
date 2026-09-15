@@ -42,23 +42,25 @@ func _get_or_create(scene: PackedScene, parent: Node) -> Node:
 		node = scene.instantiate()
 		node.set_meta("pool_scene_path", path)
 		if parent:
-			parent.add_child(node)
+			if Engine.is_editor_hint():
+				parent.add_child(node)
+			else:
+				parent.call_deferred("add_child", node)
 	else:
 		if node.get_parent() != parent:
 			if node.get_parent():
-				node.get_parent().remove_child(node)
+				node.get_parent().call_deferred("remove_child", node)
 			if parent:
-				parent.add_child(node)
+				parent.call_deferred("add_child", node)
 
-	# 노드 활성화
+	# 노드 활성화 (물리 쿼리 충돌 방지를 위해 deferred 처리)
 	node.visible = true
 	node.process_mode = Node.PROCESS_MODE_INHERIT
 	node.set_process(true)
 	node.set_physics_process(true)
 	
 	if node is CollisionObject2D:
-		for owner_id in node.get_shape_owners():
-			node.shape_owner_set_disabled(owner_id, false)
+		_set_collision_shapes_state(node, false)
 
 	return node
 
@@ -74,15 +76,21 @@ func _return_to_pool(node: Node) -> void:
 	if not pools.has(path):
 		pools[path] = []
 
-	# 노드 비활성화
+	# 노드 비활성화 (물리 쿼리 충돌 방지를 위해 deferred 처리)
 	node.visible = false
 	node.process_mode = Node.PROCESS_MODE_DISABLED
 	node.set_process(false)
 	node.set_physics_process(false)
 
 	if node is CollisionObject2D:
-		for owner_id in node.get_shape_owners():
-			node.shape_owner_set_disabled(owner_id, true)
+		_set_collision_shapes_state(node, true)
 
 	if not pools[path].has(node):
 		pools[path].append(node)
+
+func _set_collision_shapes_state(node: CollisionObject2D, disabled: bool) -> void:
+	for child in node.get_children():
+		if child is CollisionShape2D or child is CollisionPolygon2D:
+			child.set_deferred("disabled", disabled)
+	for owner_id in node.get_shape_owners():
+		node.call_deferred("shape_owner_set_disabled", owner_id, disabled)
