@@ -1,0 +1,88 @@
+class_name ObjectPool
+extends Node
+
+static var instance: ObjectPool = null
+
+# Dictionary of PackedScene.resource_path -> Array[Node]
+var pools: Dictionary = {}
+
+func _init() -> void:
+	if instance == null:
+		instance = self
+
+static func get_pool() -> ObjectPool:
+	if instance == null:
+		instance = ObjectPool.new()
+	return instance
+
+static func spawn(scene: PackedScene, parent: Node) -> Node:
+	return get_pool()._get_or_create(scene, parent)
+
+static func recycle(node: Node) -> void:
+	get_pool()._return_to_pool(node)
+
+func _get_or_create(scene: PackedScene, parent: Node) -> Node:
+	if scene == null:
+		return null
+		
+	var path = scene.resource_path
+	if not pools.has(path):
+		pools[path] = []
+
+	var pool_list: Array = pools[path]
+	var node: Node = null
+
+	while pool_list.size() > 0:
+		var candidate = pool_list.pop_back()
+		if is_instance_valid(candidate):
+			node = candidate
+			break
+
+	if node == null:
+		node = scene.instantiate()
+		node.set_meta("pool_scene_path", path)
+		if parent:
+			parent.add_child(node)
+	else:
+		if node.get_parent() != parent:
+			if node.get_parent():
+				node.get_parent().remove_child(node)
+			if parent:
+				parent.add_child(node)
+
+	# 노드 활성화
+	node.visible = true
+	node.process_mode = Node.PROCESS_MODE_INHERIT
+	node.set_process(true)
+	node.set_physics_process(true)
+	
+	if node is CollisionObject2D:
+		for owner_id in node.get_shape_owners():
+			node.shape_owner_set_disabled(owner_id, false)
+
+	return node
+
+func _return_to_pool(node: Node) -> void:
+	if not is_instance_valid(node):
+		return
+
+	var path = node.get_meta("pool_scene_path", "")
+	if path == "":
+		node.queue_free()
+		return
+
+	if not pools.has(path):
+		pools[path] = []
+
+	# 노드 비활성화
+	node.visible = false
+	node.process_mode = Node.PROCESS_MODE_DISABLED
+	node.set_process(false)
+	node.set_physics_process(false)
+
+	if node is CollisionObject2D:
+		for owner_id in node.get_shape_owners():
+			node.shape_owner_set_disabled(owner_id, true)
+
+	if not pools[path].has(node):
+		pools[path].append(node)

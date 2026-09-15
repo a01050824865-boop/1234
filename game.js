@@ -17,6 +17,25 @@ const assets = {
     }
 };
 
+/* --- OBJECT POOLING SYSTEM --- */
+class ObjectPool {
+    constructor(factory = () => ({})) {
+        this.factory = factory;
+        this.freeList = [];
+    }
+    get() {
+        return this.freeList.pop() || this.factory();
+    }
+    release(obj) {
+        if (obj) {
+            this.freeList.push(obj);
+        }
+    }
+    clear() {
+        this.freeList.length = 0;
+    }
+}
+
 // Game Configuration & Stats Manager (Player and Enemy stats)
 const GameStats = {
     player: {
@@ -317,6 +336,20 @@ class SurvivorGame {
 
         this.skills = JSON.parse(JSON.stringify(SKILLS_DB));
 
+        // Object Pools
+        if (!this.mobsPool) this.mobsPool = new ObjectPool();
+        if (!this.projPool) this.projPool = new ObjectPool();
+        if (!this.gemsPool) this.gemsPool = new ObjectPool();
+        if (!this.particlesPool) this.particlesPool = new ObjectPool();
+        if (!this.damageTextsPool) this.damageTextsPool = new ObjectPool();
+
+        // Release existing active objects to pools if restarting
+        if (this.mobs) this.mobs.forEach(m => this.mobsPool.release(m));
+        if (this.gems) this.gems.forEach(g => this.gemsPool.release(g));
+        if (this.projectiles) this.projectiles.forEach(p => this.projPool.release(p));
+        if (this.particles) this.particles.forEach(p => this.particlesPool.release(p));
+        if (this.damageTexts) this.damageTexts.forEach(d => this.damageTextsPool.release(d));
+
         this.mobs = [];
         this.gems = [];
         this.projectiles = [];
@@ -505,6 +538,7 @@ class SurvivorGame {
 
             if (proj.life <= 0) {
                 this.projectiles.splice(i, 1);
+                this.projPool.release(proj);
             }
         }
 
@@ -526,6 +560,7 @@ class SurvivorGame {
                 p.exp += gem.value;
                 AudioSys.playExp();
                 this.gems.splice(i, 1);
+                this.gemsPool.release(gem);
                 this.checkLevelUp();
             }
         }
@@ -536,14 +571,20 @@ class SurvivorGame {
             pt.x += pt.vx * dt;
             pt.y += pt.vy * dt;
             pt.life -= dt;
-            if (pt.life <= 0) this.particles.splice(i, 1);
+            if (pt.life <= 0) {
+                this.particles.splice(i, 1);
+                this.particlesPool.release(pt);
+            }
         }
 
         for (let i = this.damageTexts.length - 1; i >= 0; i--) {
             const dtItem = this.damageTexts[i];
             dtItem.y -= 25 * dt;
             dtItem.life -= dt;
-            if (dtItem.life <= 0) this.damageTexts.splice(i, 1);
+            if (dtItem.life <= 0) {
+                this.damageTexts.splice(i, 1);
+                this.damageTextsPool.release(dtItem);
+            }
         }
 
         this.updateHUD();
@@ -564,19 +605,25 @@ class SurvivorGame {
         const orbit = this.skills.holy_orbit;
         if (orbit.level > 0) {
             this.orbitAngle += dt * 3.8;
-            this.projectiles = this.projectiles.filter(pr => pr.type !== 'orbit');
+            for (let i = this.projectiles.length - 1; i >= 0; i--) {
+                if (this.projectiles[i].type === 'orbit') {
+                    const orb = this.projectiles.splice(i, 1)[0];
+                    this.projPool.release(orb);
+                }
+            }
             const count = orbit.level + 1;
             for (let i = 0; i < count; i++) {
                 const angle = this.orbitAngle + (i * Math.PI * 2 / count);
-                this.projectiles.push({
-                    type: 'orbit',
-                    x: p.x + Math.cos(angle) * 75,
-                    y: p.y + Math.sin(angle) * 75,
-                    angle: angle,
-                    radius: 14,
-                    damage: GameStats.player.attack * 0.75 * (1 + orbit.level * 0.25),
-                    life: 0.1
-                });
+                const orb = this.projPool.get();
+                orb.type = 'orbit';
+                orb.x = p.x + Math.cos(angle) * 75;
+                orb.y = p.y + Math.sin(angle) * 75;
+                orb.angle = angle;
+                orb.radius = 14;
+                orb.damage = GameStats.player.attack * 0.75 * (1 + orbit.level * 0.25);
+                orb.life = 0.1;
+                if (orb.hitMobs) orb.hitMobs.clear();
+                this.projectiles.push(orb);
             }
         }
 
@@ -628,19 +675,21 @@ class SurvivorGame {
         const lvl = this.skills.sword_slash.level;
         const dmg = GameStats.player.attack * (1 + (lvl - 1) * 0.35);
 
-        this.projectiles.push({
-            type: 'slash',
-            x: p.x + dirX * 20,
-            y: p.y + dirY * 20,
-            vx: dirX * spd,
-            vy: dirY * spd,
-            angle: angle,
-            radius: 28 + lvl * 4,
-            damage: dmg,
-            pierce: 2 + lvl,
-            life: 0.75,
-            facing: p.facing
-        });
+        const proj = this.projPool.get();
+        proj.type = 'slash';
+        proj.x = p.x + dirX * 20;
+        proj.y = p.y + dirY * 20;
+        proj.vx = dirX * spd;
+        proj.vy = dirY * spd;
+        proj.angle = angle;
+        proj.radius = 28 + lvl * 4;
+        proj.damage = dmg;
+        proj.pierce = 2 + lvl;
+        proj.life = 0.75;
+        proj.facing = p.facing;
+        if (proj.hitMobs) proj.hitMobs.clear();
+
+        this.projectiles.push(proj);
     }
 
     strikeLightning() {
@@ -670,18 +719,20 @@ class SurvivorGame {
         const dmg = GameStats.player.attack * 0.65 * (1 + this.skills.arrow_rain.level * 0.2);
         for (let i = 0; i < count; i++) {
             const angle = (Math.PI * 2 / count) * i;
-            this.projectiles.push({
-                type: 'arrow',
-                x: p.x,
-                y: p.y,
-                vx: Math.cos(angle) * 460,
-                vy: Math.sin(angle) * 460,
-                radius: 8,
-                damage: dmg,
-                pierce: 1,
-                life: 1.2,
-                angle: angle
-            });
+            const proj = this.projPool.get();
+            proj.type = 'arrow';
+            proj.x = p.x;
+            proj.y = p.y;
+            proj.vx = Math.cos(angle) * 460;
+            proj.vy = Math.sin(angle) * 460;
+            proj.radius = 8;
+            proj.damage = dmg;
+            proj.pierce = 1;
+            proj.life = 1.2;
+            proj.angle = angle;
+            if (proj.hitMobs) proj.hitMobs.clear();
+
+            this.projectiles.push(proj);
         }
     }
 
@@ -736,38 +787,42 @@ class SurvivorGame {
 
         const proto = GameStats.mobs[mobType] || GameStats.mobs.slime;
 
-        this.mobs.push({
-            type: mobType,
-            x: x,
-            y: y,
-            hp: proto.hp,
-            maxHp: proto.hp,
-            speed: proto.speed,
-            atk: proto.atk,
-            exp: proto.exp,
-            sprite: proto.sprite,
-            frames: proto.frames,
-            attackSprite: proto.attackSprite || null,
-            attackFrames: proto.attackFrames || 6,
-            attackRange: proto.attackRange || 0,
-            attackInterval: proto.attackInterval || 1.0,
-            attackCooldown: 0,
-            state: 'walk',
-            animTime: Math.random(),
-            facing: 1
-        });
+        const mob = this.mobsPool.get();
+        mob.type = mobType;
+        mob.x = x;
+        mob.y = y;
+        mob.hp = proto.hp;
+        mob.maxHp = proto.hp;
+        mob.speed = proto.speed;
+        mob.atk = proto.atk;
+        mob.exp = proto.exp;
+        mob.sprite = proto.sprite;
+        mob.frames = proto.frames;
+        mob.attackSprite = proto.attackSprite || null;
+        mob.attackFrames = proto.attackFrames || 6;
+        mob.attackRange = proto.attackRange || 0;
+        mob.attackInterval = proto.attackInterval || 1.0;
+        mob.attackCooldown = 0;
+        mob.state = 'walk';
+        mob.attackTimer = 0;
+        mob.hasDamaged = false;
+        mob.animTime = Math.random();
+        mob.facing = 1;
+
+        this.mobs.push(mob);
     }
 
     killMob(idx) {
         const mob = this.mobs[idx];
         this.killCount++;
         this.mobs.splice(idx, 1);
+        this.mobsPool.release(mob);
 
-        this.gems.push({
-            x: mob.x,
-            y: mob.y,
-            value: mob.exp
-        });
+        const gem = this.gemsPool.get();
+        gem.x = mob.x;
+        gem.y = mob.y;
+        gem.value = mob.exp;
+        this.gems.push(gem);
 
         this.createBloodParticles(mob.x, mob.y, '#ef4444');
     }
@@ -887,21 +942,28 @@ class SurvivorGame {
     }
 
     addDamageText(x, y, text, color) {
-        this.damageTexts.push({ x, y, text, color, life: 0.6 });
+        const dtItem = this.damageTextsPool.get();
+        dtItem.x = x;
+        dtItem.y = y;
+        dtItem.text = text;
+        dtItem.color = color;
+        dtItem.life = 0.6;
+        this.damageTexts.push(dtItem);
     }
 
     createBloodParticles(x, y, color) {
         for (let i = 0; i < 6; i++) {
             const angle = Math.random() * Math.PI * 2;
             const spd = 40 + Math.random() * 80;
-            this.particles.push({
-                x, y,
-                vx: Math.cos(angle) * spd,
-                vy: Math.sin(angle) * spd,
-                life: 0.35,
-                color,
-                size: 3 + Math.random() * 3
-            });
+            const pt = this.particlesPool.get();
+            pt.x = x;
+            pt.y = y;
+            pt.vx = Math.cos(angle) * spd;
+            pt.vy = Math.sin(angle) * spd;
+            pt.life = 0.35;
+            pt.color = color;
+            pt.size = 3 + Math.random() * 3;
+            this.particles.push(pt);
         }
     }
 
@@ -909,14 +971,15 @@ class SurvivorGame {
         for (let i = 0; i < 12; i++) {
             const angle = Math.random() * Math.PI * 2;
             const spd = 80 + Math.random() * 120;
-            this.particles.push({
-                x, y,
-                vx: Math.cos(angle) * spd,
-                vy: Math.sin(angle) * spd,
-                life: 0.25,
-                color: '#67e8f9',
-                size: 3
-            });
+            const pt = this.particlesPool.get();
+            pt.x = x;
+            pt.y = y;
+            pt.vx = Math.cos(angle) * spd;
+            pt.vy = Math.sin(angle) * spd;
+            pt.life = 0.25;
+            pt.color = '#67e8f9';
+            pt.size = 3;
+            this.particles.push(pt);
         }
     }
 

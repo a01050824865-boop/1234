@@ -166,44 +166,53 @@ func _physics_process(delta: float) -> void:
 
 func fire_slash() -> void:
 	attack_anim_timer = 0.35
-	var slash = slash_scene.instantiate()
-	slash.global_position = global_position
-	
+	var parent_node = get_parent()
+	if not parent_node:
+		return
+
 	var mouse_pos = get_global_mouse_position()
 	var attack_dir = (mouse_pos - global_position).normalized()
 	if attack_dir == Vector2.ZERO:
 		attack_dir = last_move_direction if last_move_direction != Vector2.ZERO else Vector2.RIGHT
-	
-	slash.direction_vector = attack_dir
-	slash.damage = stats.base_attack_power * (1.0 + (skills["slash"] - 1) * 0.35)
-	slash.pierce = 2 + skills["slash"]
-	get_parent().add_child(slash)
+
+	var slash = ObjectPool.spawn(slash_scene, parent_node) as SlashProjectile
+	if slash:
+		var dmg = stats.base_attack_power * (1.0 + (skills["slash"] - 1) * 0.35)
+		var pierce_count = 2 + skills["slash"]
+		slash.init_slash(global_position, attack_dir, dmg, pierce_count)
 
 func cast_lightning() -> void:
 	var enemies = get_tree().get_nodes_in_group("enemies")
 	if enemies.is_empty():
 		return
+	var parent_node = get_parent()
+	if not parent_node:
+		return
+
 	enemies.shuffle()
 	var targets = min(enemies.size(), skills["lightning"])
 	for i in range(targets):
 		var en = enemies[i]
-		if is_instance_valid(en) and en.has_method("take_damage"):
+		if is_instance_valid(en) and en.visible and en.has_method("take_damage"):
 			var dmg = stats.base_attack_power * 1.8 * (1.0 + skills["lightning"] * 0.3)
 			en.take_damage(dmg)
-			var l_effect = lightning_scene.instantiate()
-			l_effect.global_position = en.global_position + Vector2(0, -10)
-			get_parent().add_child(l_effect)
+			var l_effect = ObjectPool.spawn(lightning_scene, parent_node) as LightningEffect
+			if l_effect:
+				l_effect.init_lightning(en.global_position + Vector2(0, -10))
 
 func fire_arrows() -> void:
+	var parent_node = get_parent()
+	if not parent_node:
+		return
+
 	var count = 4 + skills["arrows"] * 2
 	var dmg = stats.base_attack_power * 0.65 * (1.0 + skills["arrows"] * 0.2)
 	for i in range(count):
 		var angle = (TAU / count) * i
-		var arr = arrow_scene.instantiate()
-		arr.global_position = global_position
-		arr.direction_vector = Vector2(cos(angle), sin(angle))
-		arr.damage = dmg
-		get_parent().add_child(arr)
+		var dir = Vector2(cos(angle), sin(angle))
+		var arr = ObjectPool.spawn(arrow_scene, parent_node) as ArrowProjectile
+		if arr:
+			arr.init_arrow(global_position, dir, dmg)
 
 func update_orbit_shields() -> void:
 	for orb in active_orbits:

@@ -20,7 +20,12 @@ func _physics_process(delta: float) -> void:
 			var dir = (player.global_position - global_position).normalized()
 			global_position += dir * speed * delta
 
+func init_gem(amount: int, pos: Vector2) -> void:
+	exp_amount = amount
+	global_position = pos
+	is_attracted = false
+
 func _on_body_entered(body: Node2D) -> void:
 	if body is Player:
 		body.gain_exp(exp_amount)
-		queue_free()
+		ObjectPool.recycle(self)

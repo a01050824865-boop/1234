@@ -75,7 +75,9 @@ func spawn_enemy() -> void:
 	var dist = 520.0 + randf() * 100.0
 	var pos = player.global_position + Vector2(cos(angle), sin(angle)) * dist
 
-	var enemy = enemy_scene.instantiate()
+	var enemy = ObjectPool.spawn(enemy_scene, self) as Enemy
+	if not enemy:
+		return
 	enemy.global_position = pos
 
 	# 웨이브별 몬스터 출현 풀 및 확률 테이블 (슬라임은 기본 스탯 고정 유지, 신규 웨이브마다 새로운 몬스터 등장)
@@ -133,35 +135,18 @@ func spawn_enemy() -> void:
 
 	match chosen_type:
 		"elite_orc":
-			enemy.stats = mob_elite_orc_stats.duplicate()
-			enemy.sprite_texture = tex_elite_orc
-			enemy.frames_count = 8
+			enemy.init_enemy(mob_elite_orc_stats, tex_elite_orc, 8)
 		"werewolf":
-			enemy.stats = mob_werewolf_stats.duplicate()
-			enemy.sprite_texture = tex_werewolf
-			enemy.frames_count = 8
+			enemy.init_enemy(mob_werewolf_stats, tex_werewolf, 8)
 		"orc":
-			enemy.stats = mob_orc_stats.duplicate()
-			enemy.sprite_texture = tex_orc
-			enemy.frames_count = 8
+			enemy.init_enemy(mob_orc_stats, tex_orc, 8)
 		"skeleton":
-			enemy.stats = mob_skel_stats.duplicate()
-			enemy.sprite_texture = tex_skel
-			enemy.frames_count = 8
-			enemy.attack_texture = tex_skel_attack
-			enemy.attack_frames_count = 6
-			enemy.attack_range = 65.0
+			enemy.init_enemy(mob_skel_stats, tex_skel, 8, tex_skel_attack, 6, 65.0)
 		"bat":
-			enemy.stats = mob_bat_stats.duplicate()
-			enemy.sprite_texture = tex_bat
-			enemy.frames_count = 6
+			enemy.init_enemy(mob_bat_stats, tex_bat, 6)
 		_:
 			# slime (웨이브가 지나도 첫 웨이브 스탯 그대로 유지)
-			enemy.stats = mob_slime_stats.duplicate()
-			enemy.sprite_texture = tex_slime
-			enemy.frames_count = 6
-
-	add_child(enemy)
+			enemy.init_enemy(mob_slime_stats, tex_slime, 6)
 
 func _on_health_changed(curr: float, max_hp: float) -> void:
 	hp_label.text = "❤️ HP: %d / %d" % [ceil(curr), ceil(max_hp)]

@@ -19,22 +19,36 @@ func _ready() -> void:
 	scale = Vector2(1.4, 1.4)
 	rotation = direction_vector.angle()
 
+func init_slash(pos: Vector2, dir: Vector2, dmg: float, p_pierce: int = 3, spd: float = 420.0, life: float = 0.75) -> void:
+	global_position = pos
+	direction_vector = dir.normalized()
+	damage = dmg
+	pierce = p_pierce
+	speed = spd
+	life_time = life
+	total_lifetime = life
+	anim_timer = 0.0
+	scale = Vector2(1.4, 1.4)
+	rotation = direction_vector.angle()
+	if sprite:
+		sprite.frame = 0
+
 func _physics_process(delta: float) -> void:
 	global_position += direction_vector * speed * delta
 	life_time -= delta
 	anim_timer += delta
-	if sprite:
+	if sprite and total_lifetime > 0:
 		var progress = 1.0 - (life_time / total_lifetime)
 		sprite.frame = clamp(int(progress * 6), 0, 5)
 	if life_time <= 0:
-		queue_free()
+		ObjectPool.recycle(self)
 
 func _on_body_entered(body: Node2D) -> void:
 	if body.is_in_group("enemies") and body.has_method("take_damage"):
 		body.take_damage(damage)
 		pierce -= 1
 		if pierce <= 0:
-			queue_free()
+			ObjectPool.recycle(self)
 
 func _on_area_entered(area: Area2D) -> void:
 	var parent = area.get_parent()
@@ -42,4 +56,4 @@ func _on_area_entered(area: Area2D) -> void:
 		parent.take_damage(damage)
 		pierce -= 1
 		if pierce <= 0:
-			queue_free()
+			ObjectPool.recycle(self)

@@ -97,6 +97,27 @@ func _physics_process(delta: float) -> void:
 				if collider is Player:
 					collider.take_damage(stats.base_attack_power)
 
+func init_enemy(p_stats: CharacterStats, p_tex: Texture2D, p_frames: int, p_atk_tex: Texture2D = null, p_atk_frames: int = 6, p_atk_range: float = 0.0) -> void:
+	stats = p_stats.duplicate()
+	stats.reset_health()
+	frames_count = p_frames
+	sprite_texture = p_tex
+	attack_texture = p_atk_tex
+	attack_frames_count = p_atk_frames
+	attack_range = p_atk_range
+	state = "walk"
+	attack_timer = 0.0
+	attack_cooldown = 0.0
+	has_damaged = false
+	anim_timer = 0.0
+	modulate = Color(1, 1, 1, 1)
+
+	if sprite:
+		sprite.texture = sprite_texture
+		sprite.hframes = frames_count
+		sprite.vframes = 1
+		sprite.frame = 0
+
 func take_damage(amount: float) -> void:
 	var died = stats.take_damage(amount)
 	# Flash white
@@ -108,11 +129,12 @@ func take_damage(amount: float) -> void:
 		die()
 
 func die() -> void:
-	var gem = gem_scene.instantiate()
-	gem.global_position = global_position
-	gem.exp_amount = stats.exp_reward
-	get_parent().call_deferred("add_child", gem)
 	var parent_node = get_parent()
-	if parent_node and parent_node.has_method("add_score"):
-		parent_node.add_score(stats.score_reward)
-	queue_free()
+	if parent_node:
+		var gem = ObjectPool.spawn(gem_scene, parent_node) as ExpGem
+		if gem:
+			gem.init_gem(stats.exp_reward, global_position)
+		if parent_node.has_method("add_score"):
+			parent_node.add_score(stats.score_reward)
+
+	ObjectPool.recycle(self)
