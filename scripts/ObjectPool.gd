@@ -19,7 +19,8 @@ static func spawn(scene: PackedScene, parent: Node) -> Node:
 	return get_pool()._get_or_create(scene, parent)
 
 static func recycle(node: Node) -> void:
-	get_pool()._return_to_pool(node)
+	if is_instance_valid(node):
+		get_pool().call_deferred("_return_to_pool", node)
 
 func _get_or_create(scene: PackedScene, parent: Node) -> Node:
 	if scene == null:
@@ -53,9 +54,9 @@ func _get_or_create(scene: PackedScene, parent: Node) -> Node:
 			if parent:
 				parent.call_deferred("add_child", node)
 
-	# 노드 활성화 (물리 쿼리 충돌 방지를 위해 deferred 처리)
+	# 노드 활성화
 	node.visible = true
-	node.process_mode = Node.PROCESS_MODE_INHERIT
+	node.set_deferred("process_mode", Node.PROCESS_MODE_INHERIT)
 	node.set_process(true)
 	node.set_physics_process(true)
 	
@@ -76,9 +77,9 @@ func _return_to_pool(node: Node) -> void:
 	if not pools.has(path):
 		pools[path] = []
 
-	# 노드 비활성화 (물리 쿼리 충돌 방지를 위해 deferred 처리)
+	# 노드 비활성화
 	node.visible = false
-	node.process_mode = Node.PROCESS_MODE_DISABLED
+	node.set_deferred("process_mode", Node.PROCESS_MODE_DISABLED)
 	node.set_process(false)
 	node.set_physics_process(false)
 
@@ -89,6 +90,9 @@ func _return_to_pool(node: Node) -> void:
 		pools[path].append(node)
 
 func _set_collision_shapes_state(node: CollisionObject2D, disabled: bool) -> void:
+	if node is Area2D:
+		node.set_deferred("monitoring", not disabled)
+		node.set_deferred("monitorable", not disabled)
 	for child in node.get_children():
 		if child is CollisionShape2D or child is CollisionPolygon2D:
 			child.set_deferred("disabled", disabled)
