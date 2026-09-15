@@ -1,0 +1,26 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemy.gd" id="1_enemy"]
+[ext_resource type="Resource" path="res://resources/SlimeStats.tres" id="2_stats"]
+[ext_resource type="Texture2D" path="res://asset/Characters01/Characters(100x100 split)/Slime/Slime with shadows/Slime_Walk.png" id="3_tex"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_body"]
+radius = 14.0
+
+[node name="Enemy" type="CharacterBody2D" groups=["enemies"]]
+scale = Vector2(1.8, 1.8)
+collision_layer = 2
+collision_mask = 1
+script = ExtResource("1_enemy")
+stats = ExtResource("2_stats")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture_filter = 1
+texture = ExtResource("3_tex")
+hframes = 6
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(0, 4)
+shape = SubResource("CircleShape2D_body")
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]

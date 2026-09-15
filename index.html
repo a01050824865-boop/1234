@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Knight Survivor - 탕탕특공대 스타일 게임</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+        body { background-color: #0f172a; color: #fff; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow: hidden; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        #game-container { position: relative; width: 100vw; height: 100vh; max-width: 1280px; max-height: 800px; box-shadow: 0 10px 40px rgba(0,0,0,0.8); background: #1e1e24; overflow: hidden; border-radius: 8px; display: flex; }
+        canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
+        #hud { position: absolute; top: 0; left: 0; right: 0; padding: 12px 20px; pointer-events: none; display: flex; flex-direction: column; gap: 8px; z-index: 10; }
+        .hud-row { display: flex; justify-content: space-between; align-items: center; }
+        .exp-bar-container { width: 100%; height: 20px; background: rgba(0, 0, 0, 0.6); border-radius: 10px; overflow: hidden; border: 2px solid #3b82f6; position: relative; }
+        .exp-bar-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #3b82f6, #60a5fa); transition: width 0.15s ease-out; }
+        .exp-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 11px; font-weight: bold; text-shadow: 1px 1px 2px #000; }
+        .badge { background: rgba(0, 0, 0, 0.7); padding: 6px 14px; border-radius: 20px; font-size: 14px; font-weight: bold; border: 1px solid rgba(255, 255, 255, 0.15); display: flex; align-items: center; gap: 6px; }
+        .badge-hp { border-color: #ef4444; color: #f87171; }
+        .badge-score { border-color: #fbbf24; color: #fde047; }
+        .badge-level { border-color: #3b82f6; color: #93c5fd; }
+        .overlay { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(4px); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100; }
+        .hidden { display: none !important; }
+        .levelup-box { text-align: center; max-width: 800px; width: 90%; }
+        .levelup-title { font-size: 32px; font-weight: 900; color: #facc15; text-shadow: 0 0 15px rgba(250, 204, 21, 0.6); margin-bottom: 24px; letter-spacing: 2px; }
+        .cards-container { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+        .skill-card { background: linear-gradient(145deg, #1f2937, #111827); border: 2px solid #374151; border-radius: 12px; padding: 20px; width: 220px; cursor: pointer; transition: all 0.2s ease; text-align: left; display: flex; flex-direction: column; gap: 8px; }
+        .skill-card:hover { transform: translateY(-8px) scale(1.03); border-color: #60a5fa; box-shadow: 0 10px 25px rgba(59, 130, 246, 0.4); }
+        .skill-card .skill-icon { font-size: 36px; text-align: center; margin-bottom: 4px; }
+        .skill-card .skill-name { font-size: 18px; font-weight: bold; color: #e0e7ff; }
+        .skill-card .skill-level { font-size: 12px; color: #93c5fd; font-weight: bold; }
+        .skill-card .skill-desc { font-size: 13px; color: #9ca3af; line-height: 1.4; }
+        .gameover-box { text-align: center; background: #1f2937; padding: 36px 48px; border-radius: 16px; border: 2px solid #ef4444; box-shadow: 0 0 40px rgba(239, 68, 68, 0.4); }
+        .btn-restart { margin-top: 24px; background: linear-gradient(135deg, #ef4444, #dc2626); color: #fff; border: none; padding: 12px 32px; border-radius: 8px; font-size: 18px; font-weight: bold; cursor: pointer; transition: all 0.2s; }
+        .btn-restart:hover { transform: scale(1.05); box-shadow: 0 0 20px rgba(239, 68, 68, 0.7); }
+        #stat-panel-toggle { position: absolute; bottom: 16px; right: 16px; background: #374151; color: #fff; border: 1px solid #4b5563; padding: 8px 14px; border-radius: 6px; font-size: 13px; cursor: pointer; z-index: 50; opacity: 0.85; transition: opacity 0.2s; }
+        #stat-panel-toggle:hover { opacity: 1; background: #4b5563; }
+        #stat-panel { position: absolute; top: 50px; right: 16px; width: 330px; background: rgba(17, 24, 39, 0.95); border: 1px solid #374151; border-radius: 12px; padding: 16px; z-index: 60; max-height: 80vh; overflow-y: auto; backdrop-filter: blur(8px); font-size: 13px; }
+        #stat-panel h3 { font-size: 16px; color: #facc15; margin-bottom: 12px; border-bottom: 1px solid #374151; padding-bottom: 6px; display: flex; justify-content: space-between; align-items: center; }
+        .stat-group { margin-bottom: 14px; background: rgba(31, 41, 55, 0.6); padding: 10px; border-radius: 6px; }
+        .stat-group-title { font-weight: bold; color: #93c5fd; margin-bottom: 8px; }
+        .stat-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+        .stat-row label { color: #d1d5db; }
+        .stat-row input { width: 80px; background: #111827; border: 1px solid #4b5563; color: #fff; padding: 4px 6px; border-radius: 4px; text-align: right; }
+        #active-skills { position: absolute; bottom: 16px; left: 16px; display: flex; gap: 8px; pointer-events: none; z-index: 10; }
+        .active-skill-badge { background: rgba(0,0,0,0.7); border: 1px solid #3b82f6; border-radius: 8px; padding: 6px 10px; font-size: 12px; display: flex; flex-direction: column; align-items: center; }
+        .active-skill-badge .icon { font-size: 18px; }
+        .active-skill-badge .lvl { font-size: 10px; color: #60a5fa; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        <div id="hud">
+            <div class="exp-bar-container">
+                <div id="exp-fill" class="exp-bar-fill"></div>
+                <div id="exp-text" class="exp-text">EXP 0 / 10</div>
+            </div>
+            <div class="hud-row">
+                <div class="badge badge-hp">❤️ HP: <span id="hp-val">100 / 100</span></div>
+                <div class="badge badge-level">⭐ LV: <span id="lvl-val">1</span></div>
+                <div class="badge badge-score">💀 처치: <span id="kill-val">0</span> | ⏱️ 시간: <span id="time-val">00:00</span></div>
+            </div>
+        </div>
+        <div id="active-skills"></div>
+        <div id="levelup-modal" class="overlay hidden">
+            <div class="levelup-box">
+                <div class="levelup-title">⚡ 레벨 업! 스킬 선택 ⚡</div>
+                <div id="cards-container" class="cards-container"></div>
+            </div>
+        </div>
+        <div id="gameover-modal" class="overlay hidden">
+            <div class="gameover-box">
+                <h1 style="color: #ef4444; font-size: 36px; margin-bottom: 12px;">💀 기사가 쓰러졌습니다</h1>
+                <p style="color: #9ca3af; margin-bottom: 6px;">생존 시간: <span id="final-time" style="color: #fff; font-weight: bold;">00:00</span></p>
+                <p style="color: #9ca3af; margin-bottom: 20px;">처치한 몬스터: <span id="final-kills" style="color: #fbbf24; font-weight: bold;">0</span> 마리</p>
+                <button id="btn-restart" class="btn-restart">🔄 다시 시작하기</button>
+            </div>
+        </div>
+        <button id="stat-panel-toggle">⚙️ 스탯 관리자</button>
+        <div id="stat-panel" class="hidden">
+            <h3>
+                <span>캐릭터 & 몬스터 스탯 관리</span>
+                <button id="stat-close-btn" style="background:none; border:none; color:#9ca3af; cursor:pointer; font-size:16px;">✕</button>
+            </h3>
+            <div class="stat-group">
+                <div class="stat-group-title">🛡️ 플레이어 (Knight)</div>
+                <div class="stat-row"><label>최대 체력</label><input type="number" id="cfg-player-hp" value="100"></div>
+                <div class="stat-row"><label>이동 속도</label><input type="number" id="cfg-player-speed" value="180"></div>
+                <div class="stat-row"><label>기본 공격력</label><input type="number" id="cfg-player-atk" value="25"></div>
+                <div class="stat-row"><label>공격 주기 (초)</label><input type="number" id="cfg-player-rate" value="0.8" step="0.1"></div>
+                <div class="stat-row"><label>자석 반경 (px)</label><input type="number" id="cfg-player-magnet" value="110"></div>
+            </div>
+            <div class="stat-group">
+                <div class="stat-group-title">🟢 슬라임 (Wave 1 기본 적 - 스탯 고정)</div>
+                <div class="stat-row"><label>체력</label><input type="number" id="cfg-mob-slime-hp" value="30"></div>
+                <div class="stat-row"><label>이동 속도</label><input type="number" id="cfg-mob-slime-speed" value="70"></div>
+                <div class="stat-row"><label>공격력</label><input type="number" id="cfg-mob-slime-atk" value="6"></div>
+                <div class="stat-row"><label>경험치</label><input type="number" id="cfg-mob-slime-exp" value="1"></div>
+            </div>
+            <div class="stat-group">
+                <div class="stat-group-title">🦇 박쥐 (Wave 2 - 스피드형)</div>
+                <div class="stat-row"><label>체력</label><input type="number" id="cfg-mob-bat-hp" value="20"></div>
+                <div class="stat-row"><label>이동 속도</label><input type="number" id="cfg-mob-bat-speed" value="135"></div>
+                <div class="stat-row"><label>공격력</label><input type="number" id="cfg-mob-bat-atk" value="8"></div>
+                <div class="stat-row"><label>경험치</label><input type="number" id="cfg-mob-bat-exp" value="2"></div>
+            </div>
+            <div class="stat-group">
+                <div class="stat-group-title">💀 스켈레톤 (Wave 3 - 밸런스형)</div>
+                <div class="stat-row"><label>체력</label><input type="number" id="cfg-mob-skel-hp" value="75"></div>
+                <div class="stat-row"><label>이동 속도</label><input type="number" id="cfg-mob-skel-speed" value="80"></div>
+                <div class="stat-row"><label>공격력</label><input type="number" id="cfg-mob-skel-atk" value="15"></div>
+                <div class="stat-row"><label>경험치</label><input type="number" id="cfg-mob-skel-exp" value="3"></div>
+            </div>
+            <div class="stat-group">
+                <div class="stat-group-title">👹 오크 (Wave 4 - 탱커/강타형)</div>
+                <div class="stat-row"><label>체력</label><input type="number" id="cfg-mob-orc-hp" value="150"></div>
+                <div class="stat-row"><label>이동 속도</label><input type="number" id="cfg-mob-orc-speed" value="60"></div>
+                <div class="stat-row"><label>공격력</label><input type="number" id="cfg-mob-orc-atk" value="24"></div>
+                <div class="stat-row"><label>경험치</label><input type="number" id="cfg-mob-orc-exp" value="6"></div>
+            </div>
+            <div class="stat-group">
+                <div class="stat-group-title">🐺 늑대인간 (Wave 5 - 고속 돌진/맹수)</div>
+                <div class="stat-row"><label>체력</label><input type="number" id="cfg-mob-werewolf-hp" value="260"></div>
+                <div class="stat-row"><label>이동 속도</label><input type="number" id="cfg-mob-werewolf-speed" value="105"></div>
+                <div class="stat-row"><label>공격력</label><input type="number" id="cfg-mob-werewolf-atk" value="32"></div>
+                <div class="stat-row"><label>경험치</label><input type="number" id="cfg-mob-werewolf-exp" value="12"></div>
+            </div>
+            <div class="stat-group">
+                <div class="stat-group-title">👑 엘리트 오크 (Wave 6+ - 보스급)</div>
+                <div class="stat-row"><label>체력</label><input type="number" id="cfg-mob-elite-hp" value="450"></div>
+                <div class="stat-row"><label>이동 속도</label><input type="number" id="cfg-mob-elite-speed" value="65"></div>
+                <div class="stat-row"><label>공격력</label><input type="number" id="cfg-mob-elite-atk" value="45"></div>
+                <div class="stat-row"><label>경험치</label><input type="number" id="cfg-mob-elite-exp" value="25"></div>
+            </div>
+        </div>
+    </div>
+    <script src="game.js"></script>
+</body>
+</html>

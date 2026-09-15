@@ -1,0 +1,164 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/GameManager.gd" id="1_mgr"]
+[ext_resource type="PackedScene" path="res://scenes/Player.tscn" id="2_player"]
+
+[node name="Main" type="Node2D"]
+script = ExtResource("1_mgr")
+
+[node name="Player" parent="." instance=ExtResource("2_player")]
+
+[node name="HUD" type="CanvasLayer" parent="."]
+
+[node name="ExpBar" type="ProgressBar" parent="HUD"]
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 20.0
+offset_top = 10.0
+offset_right = -20.0
+offset_bottom = 30.0
+grow_horizontal = 2
+show_percentage = false
+
+[node name="ExpLabel" type="Label" parent="HUD"]
+anchors_preset = 10
+anchor_right = 1.0
+offset_top = 10.0
+offset_bottom = 30.0
+grow_horizontal = 2
+text = "EXP 0 / 10"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="HPLabel" type="Label" parent="HUD"]
+offset_left = 20.0
+offset_top = 40.0
+offset_right = 180.0
+offset_bottom = 65.0
+text = "❤️ HP: 100 / 100"
+
+[node name="LevelLabel" type="Label" parent="HUD"]
+offset_left = 200.0
+offset_top = 40.0
+offset_right = 320.0
+offset_bottom = 65.0
+text = "⭐ LV: 1"
+
+[node name="ScoreLabel" type="Label" parent="HUD"]
+offset_left = 340.0
+offset_top = 40.0
+offset_right = 500.0
+offset_bottom = 65.0
+text = "🏆 SCORE: 0"
+
+[node name="TimerLabel" type="Label" parent="HUD"]
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -150.0
+offset_top = 40.0
+offset_right = -20.0
+offset_bottom = 65.0
+grow_horizontal = 0
+text = "⏱️ 00:00"
+horizontal_alignment = 2
+
+[node name="LevelUpModal" type="Control" parent="HUD"]
+process_mode = 2
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Background" type="ColorRect" parent="HUD/LevelUpModal"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0, 0, 0, 0.75)
+
+[node name="VBoxContainer" type="VBoxContainer" parent="HUD/LevelUpModal"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -480.0
+offset_top = -180.0
+offset_right = 480.0
+offset_bottom = 180.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 20
+alignment = 1
+
+[node name="Title" type="Label" parent="HUD/LevelUpModal/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.88, 0.35, 1)
+theme_override_font_sizes/font_size = 34
+text = "⚡ 레벨 업! 스킬 선택 ⚡"
+horizontal_alignment = 1
+
+[node name="CardsContainer" type="HBoxContainer" parent="HUD/LevelUpModal/VBoxContainer"]
+layout_mode = 2
+theme_override_constants/separation = 25
+alignment = 1
+
+[node name="GameOverModal" type="Control" parent="HUD"]
+process_mode = 2
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Background" type="ColorRect" parent="HUD/GameOverModal"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0, 0, 0, 0.85)
+
+[node name="VBoxContainer" type="VBoxContainer" parent="HUD/GameOverModal"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -150.0
+offset_top = -80.0
+offset_right = 150.0
+offset_bottom = 80.0
+grow_horizontal = 2
+grow_vertical = 2
+alignment = 1
+
+[node name="Title" type="Label" parent="HUD/GameOverModal/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.95, 0.2, 0.2, 1)
+theme_override_font_sizes/font_size = 36
+text = "💀 사망했습니다"
+horizontal_alignment = 1
+
+[node name="FinalScoreLabel" type="Label" parent="HUD/GameOverModal/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "최종 점수: 0"
+horizontal_alignment = 1
+
+[node name="RestartButton" type="Button" parent="HUD/GameOverModal/VBoxContainer"]
+layout_mode = 2
+text = "🔄 다시 시작하기"

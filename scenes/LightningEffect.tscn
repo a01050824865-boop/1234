@@ -1,0 +1,13 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/LightningEffect.gd" id="1_light"]
+[ext_resource type="Texture2D" path="res://asset/Characters01/Magic(Projectile)/Wizard_Attack01_Effect.png" id="2_tex"]
+
+[node name="LightningEffect" type="Node2D"]
+scale = Vector2(1.5, 1.5)
+script = ExtResource("1_light")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture_filter = 1
+texture = ExtResource("2_tex")
+hframes = 10

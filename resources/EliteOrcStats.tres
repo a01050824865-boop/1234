@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="CharacterStats" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/CharacterStats.gd" id="1_stats"]
+
+[resource]
+script = ExtResource("1_stats")
+character_name = "EliteOrc"
+max_health = 450.0
+current_health = 450.0
+move_speed = 65.0
+base_attack_power = 45.0
+attack_interval = 1.0
+exp_reward = 25
+score_reward = 300
+magnet_radius = 0.0

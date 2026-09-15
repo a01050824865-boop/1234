@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="CharacterStats" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/CharacterStats.gd" id="1_stats"]
+
+[resource]
+script = ExtResource("1_stats")
+character_name = "Orc"
+max_health = 150.0
+current_health = 150.0
+move_speed = 60.0
+base_attack_power = 24.0
+attack_interval = 1.0
+exp_reward = 6
+score_reward = 80
+magnet_radius = 0.0

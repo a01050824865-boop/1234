@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="CharacterStats" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/CharacterStats.gd" id="1_stats"]
+
+[resource]
+script = ExtResource("1_stats")
+character_name = "Bat"
+max_health = 20.0
+current_health = 20.0
+move_speed = 135.0
+base_attack_power = 8.0
+attack_interval = 1.0
+exp_reward = 2
+score_reward = 20
+magnet_radius = 0.0
