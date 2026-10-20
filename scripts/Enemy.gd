@@ -11,6 +11,7 @@ extends CharacterBody2D
 
 var player_node: Node2D = null
 var gem_scene = preload("res://scenes/ExpGem.tscn")
+var magnet_scene = preload("res://scenes/MagnetItem.tscn")
 var anim_timer: float = 0.0
 var state: String = "walk"
 var attack_timer: float = 0.0
@@ -131,6 +132,7 @@ func init_enemy(p_stats: CharacterStats, p_tex: Texture2D, p_frames: int, p_atk_
 	anim_timer = 0.0
 	is_dying = false
 	modulate = Color(1, 1, 1, 1)
+	scale = Vector2(1.8, 1.8)
 
 	if sprite:
 		sprite.texture = sprite_texture
@@ -161,5 +163,12 @@ func die() -> void:
 			gem.init_gem(stats.exp_reward, global_position)
 		if parent_node.has_method("add_score"):
 			parent_node.add_score(stats.score_reward)
+
+		# 자석 아이템 드랍: 스켈레톤 이상 몬스터만 1.5% 확률로 드랍
+		# 슬라임(1 EXP), 박쥐(2 EXP)는 드랍하지 않으며, 스켈레톤(4 EXP) 이상부터 드랍
+		if stats.exp_reward >= 4 and randf() < 0.015:
+			var magnet = ObjectPool.spawn(magnet_scene, parent_node)
+			if magnet and magnet.has_method("init_item"):
+				magnet.init_item(global_position + Vector2(randf_range(-12, 12), randf_range(-12, 12)))
 
 	ObjectPool.recycle(self)

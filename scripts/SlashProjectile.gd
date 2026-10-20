@@ -21,6 +21,7 @@ func _ready() -> void:
 
 var is_recycled: bool = false
 var is_awakened: bool = false
+var hit_enemies: Array[Node] = []
 
 func init_slash(pos: Vector2, dir: Vector2, dmg: float, p_pierce: int = 3, spd: float = 420.0, life: float = 0.75, p_awakened: bool = false) -> void:
 	global_position = pos
@@ -33,6 +34,7 @@ func init_slash(pos: Vector2, dir: Vector2, dmg: float, p_pierce: int = 3, spd: 
 	anim_timer = 0.0
 	is_recycled = false
 	is_awakened = p_awakened
+	hit_enemies.clear()
 	
 	if is_awakened:
 		scale = Vector2(1.8, 1.8)
@@ -61,7 +63,10 @@ func _physics_process(delta: float) -> void:
 func _on_body_entered(body: Node2D) -> void:
 	if is_recycled:
 		return
+	if body in hit_enemies:
+		return
 	if body.is_in_group("enemies") and body.has_method("take_damage"):
+		hit_enemies.append(body)
 		body.take_damage(damage)
 		if is_awakened and body.has_method("apply_burn"):
 			body.apply_burn(damage * 0.32, 3.0)
@@ -74,7 +79,10 @@ func _on_area_entered(area: Area2D) -> void:
 	if is_recycled:
 		return
 	var parent = area.get_parent()
+	if parent in hit_enemies:
+		return
 	if parent and parent.is_in_group("enemies") and parent.has_method("take_damage"):
+		hit_enemies.append(parent)
 		parent.take_damage(damage)
 		if is_awakened and parent.has_method("apply_burn"):
 			parent.apply_burn(damage * 0.32, 3.0)

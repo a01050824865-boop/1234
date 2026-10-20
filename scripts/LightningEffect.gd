@@ -1,3 +1,5 @@
+W 0:00:00:260   DisplayServerWindows: Your video card drivers are known to have low quality OpenGL 3.3 support, switching to ANGLE.
+  <C++ 소스>      platform/windows/display_server_windows.cpp:7423 @ DisplayServerWindows()
 class_name LightningEffect
 extends Node2D
 

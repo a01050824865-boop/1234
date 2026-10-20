@@ -18,7 +18,8 @@ var skills = {
 	"lightning": 0,
 	"arrows": 0,
 	"speed": 0,
-	"regen": 0
+	"regen": 0,
+	"shield": 1
 }
 
 var slash_timer: float = 0.0
@@ -27,6 +28,11 @@ var arrows_timer: float = 0.0
 var regen_timer: float = 0.0
 var invincible_timer: float = 0.0
 var orbit_angle: float = 0.0
+
+var shield_timer: float = 0.0
+var shield_cooldown_timer: float = 0.0
+const SHIELD_COOLDOWN: float = 15.0
+var shield_visual: Node2D = null
 
 @onready var sprite: Sprite2D = $Sprite2D
 @onready var anim_player: AnimationPlayer = $AnimationPlayer
@@ -56,6 +62,29 @@ func _ready() -> void:
 	emit_signal("health_changed", stats.current_health, stats.max_health)
 	emit_signal("exp_changed", current_exp, max_exp)
 	update_orbit_shields()
+	setup_shield_barrier()
+
+class ShieldCircleVisual extends Node2D:
+	func _draw() -> void:
+		var center = Vector2(0, -2)
+		var radius = 27.0
+		# 1. 내부 반투명 푸른색 에너지 채우기
+		draw_circle(center, radius, Color(0.25, 0.75, 1.0, 0.22))
+		# 2. 내부 상단 밝은 구체 입체감
+		draw_circle(center + Vector2(-3, -5), radius * 0.5, Color(0.65, 0.9, 1.0, 0.16))
+		# 3. 외곽 원형 보호막 네온 라인
+		draw_arc(center, radius, 0, TAU, 48, Color(0.4, 0.88, 1.0, 0.9), 2.2, true)
+		# 4. 외부 미세 발광 링
+		draw_arc(center, radius + 2.2, 0, TAU, 48, Color(0.7, 0.95, 1.0, 0.35), 1.0, true)
+		# 5. 상단 반사광 호
+		draw_arc(center, radius - 2.5, -PI * 0.85, -PI * 0.25, 24, Color(1.0, 1.0, 1.0, 0.65), 1.6, true)
+
+func setup_shield_barrier() -> void:
+	shield_visual = ShieldCircleVisual.new()
+	shield_visual.name = "ShieldBarrier"
+	shield_visual.visible = false
+	shield_visual.z_index = 3
+	add_child(shield_visual)
 
 func _physics_process(delta: float) -> void:
 	if stats.current_health <= 0:
@@ -157,6 +186,23 @@ func _physics_process(delta: float) -> void:
 			stats.heal(skills["regen"] * 3.0)
 			emit_signal("health_changed", stats.current_health, stats.max_health)
 
+	# Process Shield Active Duration & Cooldown
+	if shield_timer > 0.0:
+		shield_timer -= delta
+		if shield_visual:
+			shield_visual.visible = true
+			var pulse = 1.0 + sin(shield_timer * 14.0) * 0.06
+			shield_visual.scale = Vector2(pulse, pulse)
+		if shield_timer <= 0.0:
+			shield_timer = 0.0
+			if shield_visual:
+				shield_visual.visible = false
+
+	if shield_cooldown_timer > 0.0:
+		shield_cooldown_timer -= delta
+		if shield_cooldown_timer <= 0.0:
+			shield_cooldown_timer = 0.0
+
 	# Update Orbit Shields
 	if skills["orbit"] > 0 and active_orbits.size() > 0:
 		orbit_angle += delta * 3.8
@@ -165,6 +211,56 @@ func _physics_process(delta: float) -> void:
 			if is_instance_valid(orb):
 				var angle = orbit_angle + (i * TAU / active_orbits.size())
 				orb.global_position = global_position + Vector2(cos(angle), sin(angle)) * 75.0
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo:
+		if event.physical_keycode == KEY_Q or event.keycode == KEY_Q:
+			try_activate_shield()
+
+func try_activate_shield() -> void:
+	if skills.get("shield", 0) <= 0:
+		return
+	if shield_cooldown_timer > 0.0 or shield_timer > 0.0 or stats.current_health <= 0:
+		return
+	var dur = 2.5 + (skills["shield"] - 1) * 1.0
+	shield_timer = dur
+	shield_cooldown_timer = SHIELD_COOLDOWN
+	if shield_visual:
+		shield_visual.visible = true
+	spawn_shield_popup("🛡️ 수호 방패 전개! (%.1f초)" % dur)
+
+func spawn_shield_popup(txt: String) -> void:
+	var parent_node = get_parent()
+	if not parent_node:
+		return
+	var lbl = Label.new()
+	lbl.text = txt
+	lbl.global_position = global_position + Vector2(-65, -40)
+	lbl.add_theme_font_size_override("font_size", 14)
+	lbl.add_theme_color_override("font_color", Color(0.4, 0.9, 1.0, 1.0))
+	parent_node.add_child(lbl)
+	var tw = lbl.create_tween()
+	tw.tween_property(lbl, "position:y", lbl.position.y - 25, 0.8)
+	tw.parallel().tween_property(lbl, "modulate:a", 0.0, 0.8).set_delay(0.2)
+	tw.chain().tween_callback(lbl.queue_free)
+
+func spawn_shield_block_effect() -> void:
+	if shield_visual:
+		var tw = create_tween()
+		shield_visual.modulate = Color(2.5, 2.5, 1.5, 1.0)
+		tw.tween_property(shield_visual, "modulate", Color(1, 1, 1, 1), 0.12)
+	var parent_node = get_parent()
+	if parent_node:
+		var lbl = Label.new()
+		lbl.text = "🛡️ BLOCK!"
+		lbl.global_position = global_position + Vector2(-28, -32)
+		lbl.add_theme_font_size_override("font_size", 13)
+		lbl.add_theme_color_override("font_color", Color(1.0, 0.9, 0.4, 1.0))
+		parent_node.add_child(lbl)
+		var tw = lbl.create_tween()
+		tw.tween_property(lbl, "position:y", lbl.position.y - 20, 0.5)
+		tw.parallel().tween_property(lbl, "modulate:a", 0.0, 0.5)
+		tw.chain().tween_callback(lbl.queue_free)
 
 func fire_slash() -> void:
 	attack_anim_timer = 0.35
@@ -184,7 +280,7 @@ func fire_slash() -> void:
 		var spd = 580.0 if is_awakened else 420.0
 		var life = 1.3 if is_awakened else 0.75
 		var dmg = stats.base_attack_power * (1.0 + (lvl - 1) * 0.45) * 1.85 if is_awakened else stats.base_attack_power * (1.0 + (lvl - 1) * 0.35)
-		var pierce_count = 999 if is_awakened else (2 + lvl)
+		var pierce_count = 20 if is_awakened else (5 + lvl * 2)
 		slash.init_slash(global_position, attack_dir, dmg, pierce_count, spd, life, is_awakened)
 
 func cast_lightning() -> void:
@@ -235,7 +331,12 @@ func update_orbit_shields() -> void:
 			active_orbits.append(orb)
 
 func take_damage(amount: float) -> void:
-	if invincible_timer > 0 or stats.current_health <= 0:
+	if stats.current_health <= 0:
+		return
+	if shield_timer > 0.0:
+		spawn_shield_block_effect()
+		return
+	if invincible_timer > 0:
 		return
 	invincible_timer = 0.5
 	hurt_anim_timer = 0.2

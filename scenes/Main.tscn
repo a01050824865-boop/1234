@@ -37,6 +37,14 @@ offset_right = 180.0
 offset_bottom = 65.0
 text = "❤️ HP: 100 / 100"
 
+[node name="ShieldStatusLabel" type="Label" parent="HUD"]
+offset_left = 20.0
+offset_top = 68.0
+offset_right = 320.0
+offset_bottom = 93.0
+theme_override_font_sizes/font_size = 14
+text = "🛡️ [Q] 방패: 준비 완료"
+
 [node name="LevelLabel" type="Label" parent="HUD"]
 offset_left = 200.0
 offset_top = 40.0

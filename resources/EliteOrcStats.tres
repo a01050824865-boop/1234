@@ -5,10 +5,10 @@
 [resource]
 script = ExtResource("1_stats")
 character_name = "EliteOrc"
-max_health = 450.0
-current_health = 450.0
-move_speed = 65.0
-base_attack_power = 45.0
+max_health = 300.0
+current_health = 300.0
+move_speed = 60.0
+base_attack_power = 32.0
 attack_interval = 1.0
 exp_reward = 25
 score_reward = 300

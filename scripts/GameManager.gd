@@ -6,6 +6,7 @@ extends Node2D
 @onready var exp_bar: ProgressBar = $HUD/ExpBar
 @onready var exp_label: Label = $HUD/ExpLabel
 @onready var hp_label: Label = $HUD/HPLabel
+@onready var shield_status_label: Label = $HUD/ShieldStatusLabel
 @onready var level_label: Label = $HUD/LevelLabel
 @onready var score_label: Label = $HUD/ScoreLabel
 @onready var timer_label: Label = $HUD/TimerLabel
@@ -29,6 +30,8 @@ var mob_skel_stats = preload("res://resources/SkeletonStats.tres")
 var mob_orc_stats = preload("res://resources/OrcStats.tres")
 var mob_werewolf_stats = preload("res://resources/WerewolfStats.tres")
 var mob_elite_orc_stats = preload("res://resources/EliteOrcStats.tres")
+var mob_armored_orc_stats = preload("res://resources/ArmoredOrcStats.tres")
+var mob_werebear_stats = preload("res://resources/WerebearStats.tres")
 
 # Sprite Textures
 var tex_slime = preload("res://asset/Characters01/Characters(100x100 split)/Slime/Slime with shadows/Slime_Walk.png")
@@ -39,6 +42,10 @@ var tex_skel_attack = preload("res://asset/Characters01/Characters(100x100 split
 var tex_orc = preload("res://asset/Characters01/Characters(100x100 split)/Orc/Orc with shadows/Orc_Walk.png")
 var tex_werewolf = preload("res://asset/Characters01/Characters(100x100 split)/Werewolf/Werewolf with shadows/Werewolf_Walk.png")
 var tex_elite_orc = preload("res://asset/Characters01/Characters(100x100 split)/Elite Orc/Elite Orc with shadows/Elite Orc_Walk.png")
+var tex_armored_orc = preload("res://asset/Characters01/Characters(100x100 split)/Armored Orc/Armored Orc with shadows/Armored Orc_Walk.png")
+var tex_armored_orc_atk = preload("res://asset/Characters01/Characters(100x100 split)/Armored Orc/Armored Orc with shadows/Armored Orc_Attack01.png")
+var tex_werebear = preload("res://asset/Characters01/Characters(100x100 split)/Werebear/Werebear with shadows/Werebear_Walk.png")
+var tex_werebear_atk = preload("res://asset/Characters01/Characters(100x100 split)/Werebear/Werebear with shadows/Werebear_Attack01.png")
 
 func _ready() -> void:
 	player.add_to_group("player")
@@ -62,12 +69,26 @@ func _process(delta: float) -> void:
 	var seconds = int(elapsed_time) % 60
 	timer_label.text = "⏱️ %02d:%02d [WAVE %d]" % [minutes, seconds, current_wave]
 
-	# Spawner: 웨이브가 오를수록 젠 주기 단축
+	update_shield_hud()
+
+	# Spawner: 웨이브가 오를수록 젠 주기 대폭 단축 & 한 번에 소환되는 몬스터 수 대폭 증가
 	spawn_timer += delta
-	var spawn_rate = max(0.25, 1.4 - (current_wave - 1) * 0.12)
+	var spawn_rate = max(0.18, 1.2 - (current_wave - 1) * 0.1)
 	if spawn_timer >= spawn_rate:
 		spawn_timer = 0.0
-		spawn_enemy()
+		# 후반부로 갈수록 한 번에 여러 마리의 몬스터 소환 (스킬 난사에 맞추어 개체 수 유지)
+		var spawn_batch = 1
+		if current_wave >= 7:
+			spawn_batch = randi_range(4, 7)
+		elif current_wave >= 5:
+			spawn_batch = randi_range(3, 5)
+		elif current_wave >= 3:
+			spawn_batch = randi_range(2, 3)
+		elif current_wave >= 2:
+			spawn_batch = randi_range(1, 2)
+		
+		for i in range(spawn_batch):
+			spawn_enemy()
 
 func spawn_enemy() -> void:
 	if not is_instance_valid(player):
@@ -81,7 +102,7 @@ func spawn_enemy() -> void:
 		return
 	enemy.global_position = pos
 
-	# 웨이브별 몬스터 출현 풀 및 확률 테이블 (슬라임은 기본 스탯 고정 유지, 신규 웨이브마다 새로운 몬스터 등장)
+	# 웨이브별 몬스터 출현 풀 및 확률 테이블 (후반부로 갈수록 더 강력한 몬스터 출현)
 	var roll = randf() * 100.0
 	var chosen_type = "slime"
 
@@ -123,20 +144,49 @@ func spawn_enemy() -> void:
 				chosen_type = "skeleton"
 			else:
 				chosen_type = "bat"
-		_:
-			# Wave 6+ (100s+): 엘리트 오크(보스급 체력) + 늑대인간 + 오크 + 스켈레톤
+		6:
+			# Wave 6 (100~120s): 중장갑 오크 & 엘리트 오크 등장 + 늑대인간 + 오크
 			if roll < 25.0:
+				chosen_type = "armored_orc"
+			elif roll < 50.0:
 				chosen_type = "elite_orc"
-			elif roll < 60.0:
+			elif roll < 80.0:
 				chosen_type = "werewolf"
-			elif roll < 85.0:
-				chosen_type = "orc"
 			else:
-				chosen_type = "skeleton"
+				chosen_type = "orc"
+		7:
+			# Wave 7 (120~140s): 중장갑 오크 주력 + 엘리트 오크 + 늑대인간
+			if roll < 35.0:
+				chosen_type = "armored_orc"
+			elif roll < 65.0:
+				chosen_type = "elite_orc"
+			elif roll < 90.0:
+				chosen_type = "werewolf"
+			else:
+				chosen_type = "orc"
+		_:
+			# Wave 8+ (140s+): 거대 웨어베어(보스급 체력 1450, EXP 85) + 중장갑 오크 + 엘리트 오크 + 늑대인간
+			if roll < 20.0:
+				chosen_type = "werebear"
+			elif roll < 50.0:
+				chosen_type = "armored_orc"
+			elif roll < 75.0:
+				chosen_type = "elite_orc"
+			else:
+				chosen_type = "werewolf"
 
 	match chosen_type:
+		"werebear":
+			# 거대 베어비스트 (체력 1450, 공격력 70, EXP 85)
+			enemy.init_enemy(mob_werebear_stats, tex_werebear, 8, tex_werebear_atk, 9, 70.0)
+			enemy.scale = Vector2(2.4, 2.4)
+		"armored_orc":
+			# 중장갑 오크 (체력 750, 공격력 50, EXP 45)
+			enemy.init_enemy(mob_armored_orc_stats, tex_armored_orc, 8, tex_armored_orc_atk, 7, 65.0)
+			enemy.scale = Vector2(2.1, 2.1)
 		"elite_orc":
 			enemy.init_enemy(mob_elite_orc_stats, tex_elite_orc, 8)
+			enemy.scale = Vector2(2.0, 2.0)
 		"werewolf":
 			enemy.init_enemy(mob_werewolf_stats, tex_werewolf, 8)
 		"orc":
@@ -148,6 +198,25 @@ func spawn_enemy() -> void:
 		_:
 			# slime (웨이브가 지나도 첫 웨이브 스탯 그대로 유지)
 			enemy.init_enemy(mob_slime_stats, tex_slime, 6, tex_slime_attack, 6, 50.0)
+
+func update_shield_hud() -> void:
+	if not shield_status_label or not is_instance_valid(player):
+		return
+	var shield_lv = player.skills.get("shield", 0)
+	if shield_lv <= 0:
+		shield_status_label.text = ""
+		return
+
+	if player.shield_timer > 0.0:
+		shield_status_label.text = "🛡️ [Q] 무적 방어 중! (%.1f초)" % player.shield_timer
+		shield_status_label.add_theme_color_override("font_color", Color(0.3, 0.95, 1.0, 1.0))
+	elif player.shield_cooldown_timer > 0.0:
+		shield_status_label.text = "🛡️ [Q] 방패 쿨타임 (%.1f초)" % player.shield_cooldown_timer
+		shield_status_label.add_theme_color_override("font_color", Color(0.7, 0.75, 0.8, 0.8))
+	else:
+		var cur_dur = 2.5 + (shield_lv - 1) * 1.0
+		shield_status_label.text = "🛡️ [Q] 방패 준비 완료 (지속 %.1f초)" % cur_dur
+		shield_status_label.add_theme_color_override("font_color", Color(1.0, 0.88, 0.35, 1.0))
 
 func _on_health_changed(curr: float, max_hp: float) -> void:
 	hp_label.text = "❤️ HP: %d / %d" % [ceil(curr), ceil(max_hp)]
@@ -172,6 +241,14 @@ func _on_level_up(lvl: int) -> void:
 
 	var all_skills = [
 		{
+			"id": "shield",
+			"name": "성스러운 철벽 [Q]",
+			"desc": "Q키로 발동하는 무적 방패입니다. 지속시간이 +1초 늘어납니다 (쿨타임 15초).",
+			"icon": "res://asset/holy_shield_crop.png",
+			"hframes": 1,
+			"frame": 0
+		},
+		{
 			"id": "slash",
 			"name": "기사 검기 (Slash)",
 			"desc": "전방으로 날카로운 은빛 검기를 날려 적들을 관통합니다.",
@@ -181,8 +258,8 @@ func _on_level_up(lvl: int) -> void:
 		},
 		{
 			"id": "orbit",
-			"name": "수호 방패 (Orbit)",
-			"desc": "주위를 성스러운 방패가 공전하며 접근하는 적을 타격합니다.",
+			"name": "수호의 보주 (Orbit)",
+			"desc": "주위를 성스러운 보주가 공전하며 접근하는 적을 타격합니다.",
 			"icon": "res://asset/shield_orb_icon.png",
 			"hframes": 1,
 			"frame": 0
@@ -235,7 +312,9 @@ func _on_level_up(lvl: int) -> void:
 		var cur_lv = player.skills.get(sk["id"], 0)
 		var is_awakening_next = sk["id"] == "slash" and cur_lv == 4
 		var sk_name = "🔥 진홍의 염제 검기 (각성)" if is_awakening_next else sk["name"]
-		var sk_desc = "검기가 붉은 화염으로 각성합니다! 사거리·공속·반경·공격력 대폭 상승 & 화염 지속 피해(Burn DoT) 부여!" if is_awakening_next else sk["desc"]
+		var sk_desc = "검기가 붉은 화염으로 각성합니다! 사거리·공속·반경·공격력 대폭 상승 & 화염 지속 피해(Burn DoT) 부여!" if is_awakening_next else (
+			"Q키 방어 지속시간이 +1초 늘어납니다 (현재 %.1f초 ➡️ %.1f초, 쿨타임 15초)" % [2.5 + (cur_lv - 1) * 1.0, 2.5 + cur_lv * 1.0] if sk["id"] == "shield" else sk["desc"]
+		)
 		var lv_text = "⚡ [스킬 최종 각성 진화!]" if is_awakening_next else ("현재 LV %d ➡️ LV %d" % [cur_lv, cur_lv + 1] if sk["id"] != "health" else "체력 보너스")
 
 		var panel = PanelContainer.new()
